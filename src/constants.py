@@ -3,7 +3,7 @@
 MODE_TIMEFRAMES = {
     "SCALPER": ["15s", "30s", "1m", "3m", "5m", "15m", "30m", "1h"],
     "SWING": ["15m", "30m", "1h", "2h", "4h"],
-    "CONSERVATIVE": ["1h", "2h", "4h"]  # ideally add 1D later
+    "CONSERVATIVE": ["1h", "2h", "4h"]  
 }
 
 TF_WEIGHTS = {

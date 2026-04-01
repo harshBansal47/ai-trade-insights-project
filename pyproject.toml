@@ -5,7 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "celery>=5.6.3",
     "langchain>=1.2.13",
     "langchain-google-genai>=4.2.1",
     "pandas>=3.0.2",
+    "redis>=7.4.0",
 ]
