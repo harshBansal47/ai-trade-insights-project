@@ -44,4 +44,12 @@ class RedisClient:
         print("🛑 Redis closed")
 
 
-app_redis_client = RedisClient()
+
+
+async def get_redis_client() -> AsyncIterator[redis.Redis]:
+    app_redis_client = RedisClient()
+    client = await app_redis_client.connect()
+    try:
+        yield client
+    finally:
+        await app_redis_client.close()
