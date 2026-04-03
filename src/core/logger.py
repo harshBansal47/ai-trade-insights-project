@@ -1,5 +1,6 @@
 import logging
 import sys
+import os
 from logging.handlers import RotatingFileHandler
 
 
@@ -7,7 +8,7 @@ def setup_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
 
     if logger.handlers:
-        return logger  # prevent duplicate handlers
+        return logger  
 
     logger.setLevel(logging.INFO)
 
@@ -16,14 +17,19 @@ def setup_logger(name: str) -> logging.Logger:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
+    log_dir = "logs"
+    os.makedirs(log_dir, exist_ok=True)
+
+    log_file = os.path.join(log_dir, "app.log")
+
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
 
-    # File handler (rotating logs)
+    # File handler
     file_handler = RotatingFileHandler(
-        "logs/app.log",
-        maxBytes=10 * 1024 * 1024,  # 10MB
+        log_file,
+        maxBytes=10 * 1024 * 1024,
         backupCount=5,
     )
     file_handler.setFormatter(formatter)

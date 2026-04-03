@@ -1,0 +1,17 @@
+2026-04-03 00:34:01 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 15s
+2026-04-03 00:34:11 | ERROR | src.helpers.data_loader | [FILE ERROR] /home/harsh-bansal/Downloads/hist-coins-data/BTCUSDT/BTCUSDT_15s.parquet | Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.
+A suitable version of pyarrow or fastparquet is required for parquet support.
+Trying to import the above resulted in these errors:
+ - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.
+ - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.
+2026-04-03 00:41:26 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 15s
+2026-04-03 00:41:40 | ERROR | src.helpers.data_loader | [REDIS ERROR] BTCUSDT:15s | 'async_generator' object has no attribute 'lrange'
+2026-04-03 00:42:20 | ERROR | src.helpers.data_loader | [REDIS ERROR] BTCUSDT:15s | 'async_generator' object has no attribute 'lrange'
+2026-04-03 00:49:08 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 15s
+2026-04-03 00:51:07 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 15s
+2026-04-03 00:51:07 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 15s | rows=388
+2026-04-03 00:53:05 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 15s
+2026-04-03 12:44:54 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 15s
+2026-04-03 12:47:52 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1774960410 current=1775200672 delay=240262s
+2026-04-03 12:47:52 | WARNING | src.helpers.data_loader | [DF STALE] delay=240262s > allowed=90000s
+2026-04-03 12:48:29 | WARNING | src.helpers.data_loader | [NO DATA] BTCUSDT | 15s

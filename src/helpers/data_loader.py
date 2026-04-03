@@ -1,4 +1,5 @@
 import os
+import time
 import redis
 import pandas as pd
 from typing import Optional, List, Dict, Any
@@ -13,10 +14,16 @@ logger = setup_logger(__name__)
 BASE_DIR_HIST_DATA = "/home/harsh-bansal/Downloads/hist-coins-data"
 
 TIMEFRAME_SECONDS: Dict[str, int] = {
-    "5s": 5, "15s": 15, "30s": 30,
-    "1m": 60, "3m": 180, "5m": 300,
-    "15m": 900, "30m": 1800,
-    "1h": 3600, "4h": 14400
+    "5s": 5,
+    "15s": 15,
+    "30s": 30,
+    "1m": 60,
+    "3m": 180,
+    "5m": 300,
+    "15m": 900,
+    "30m": 1800,
+    "1h": 3600,
+    "4h": 14400,
 }
 
 _loads = orjson.loads
@@ -30,7 +37,7 @@ class CoinsDataLoader:
     def __init__(self, redis_client: redis.Redis) -> None:
         self.redis_client = redis_client
 
-    def process_symbol(
+    async def process_symbol(
         self,
         symbol: str,
         timeframe: str,
@@ -42,7 +49,12 @@ class CoinsDataLoader:
         filepath = self.get_coins_file_path(symbol, timeframe)
 
         df_file = self._load_from_file(filepath)
-        df_redis = self._load_from_redis(symbol, timeframe)
+        df_redis = await self._load_from_redis(symbol, timeframe)
+        df_file.sort_values(by="timestamp", inplace=True) if df_file is not None else None
+        df_redis.sort_values(by="timestamp", inplace=True) if df_redis is not None else None
+        df_file = self.validate_dataframe_recency(df_file,max_delay_seconds=90000) if df_file is not None else None
+        df_redis = self.validate_dataframe_recency(df_redis) if df_redis is not None else None
+
 
         df = self._merge(df_file, df_redis)
 
@@ -71,7 +83,7 @@ class CoinsDataLoader:
             logger.error(f"[FILE ERROR] {filepath} | {exc}")
             return None
 
-    def _load_from_redis(
+    async def _load_from_redis(
         self,
         symbol: str,
         timeframe: str,
@@ -80,7 +92,7 @@ class CoinsDataLoader:
         key = f"{symbol}:{timeframe}"
 
         try:
-            raw_items = self.redis_client.lrange(key, 0, -1)
+            raw_items = await self.redis_client.lrange(key, 0, -1)
 
             if not raw_items:
                 return None
@@ -140,20 +152,49 @@ class CoinsDataLoader:
             df["volume"] = df["volume"].fillna(0.0)
 
         return df.reset_index().rename(columns={"index": "timestamp"})
+    
+
+    def validate_dataframe_recency(
+            self,
+    df: pd.DataFrame,
+    max_delay_seconds: int = 120,  # 2 minutes
+) -> Optional[pd.DataFrame]:
+        try:
+            latest_ts = int(df["timestamp"].iloc[-1])
+            current_ts = int(time.time())
+
+            delay = current_ts - latest_ts
+
+            logger.info(
+                f"[DF VALIDATION] latest={latest_ts} current={current_ts} delay={delay}s"
+            )
+
+            if delay > max_delay_seconds:
+                logger.warning(
+                    f"[DF STALE] delay={delay}s > allowed={max_delay_seconds}s"
+                )
+                return None
+
+            return df
+
+        except Exception as e:
+            logger.error(f"[DF VALIDATION ERROR] {e}", exc_info=True)
+            return None
 
 
 # ---------------------------------------------------------------------------
 # WORKER FUNCTIONS (TOP LEVEL ONLY)
 # ---------------------------------------------------------------------------
 
-def _worker(symbol: str, timeframe: str, fill_gaps: bool):
+
+async def _worker(symbol: str, timeframe: str, fill_gaps: bool):
     logger.info(f"[WORKER START] {symbol} | {timeframe}")
 
     try:
-        redis_client = get_redis_client()
+        redis_client =await get_redis_client()
 
         loader = CoinsDataLoader(redis_client)
-        df = loader.process_symbol(symbol, timeframe, fill_gaps)
+        df =await loader.process_symbol(symbol, timeframe, fill_gaps)
 
         if df is None:
             return {
@@ -186,6 +227,7 @@ def _worker_unpack(args):
 # ---------------------------------------------------------------------------
 # MAIN FUNCTION
 # ---------------------------------------------------------------------------
+
 
 def process_symbol_multi_timeframe(
     symbol: str,
