@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
-from sqlmodel import SQLModel, Field
+from sqlmodel import Column, DateTime, SQLModel, Field
 
 
 def _now() -> datetime:
@@ -11,8 +11,6 @@ def _now() -> datetime:
 def _uuid() -> str:
     return str(uuid.uuid4())
 
-
-# ── Base fields shared across models ──────────────────────────────────────────
 
 class UserBase(SQLModel):
     name: str = Field(min_length=2, max_length=120)
@@ -48,10 +46,16 @@ class User(UserBase, table=True):
     __table_args__ = (
         {"sqlite_autoincrement": True},  # optional (safe default)
     )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True)),
+        default_factory=_now,
+    )
 
-    created_at: datetime = Field(default_factory=_now)
-    updated_at: datetime = Field(default_factory=_now)
-
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True)),
+        default_factory=_now,
+    )
+    
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email} provider={self.provider}>"
     

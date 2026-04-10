@@ -1,23 +1,33 @@
+import hashlib
+import warnings
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from passlib.context import CryptContext
+
+import bcrypt
 from jose import jwt, JWTError
 from fastapi import HTTPException, status
 from src.core.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 jwt_algorithm: str = "HS256"
 access_token_expire_minutes: int = 10080
 
+
 # ── Password ──────────────────────────────────────────────────────────────────
 
+def _prehash(plain: str) -> bytes:
+    """
+    SHA-256 prehash → always 32 bytes, well within bcrypt's 72-byte limit.
+    Using digest() (raw bytes) rather than hexdigest() to keep it binary-safe.
+    """
+    return hashlib.sha256(plain.encode("utf-8")).digest()
+
+
 def hash_password(plain: str) -> str:
-    return pwd_context.hash(plain)
+    return bcrypt.hashpw(_prehash(plain), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(_prehash(plain), hashed.encode("utf-8"))
 
 
 # ── JWT ───────────────────────────────────────────────────────────────────────

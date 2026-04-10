@@ -1,7 +1,11 @@
 from functools import lru_cache
+import os
 from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+def is_local_environment() -> bool:
+    return os.getenv("ENVIRONMENT", "production").lower() in ["local", "development", "dev"]
 
 
 class Settings(BaseSettings):
@@ -48,8 +52,11 @@ class Settings(BaseSettings):
 
     # Email
     resend_api_key: str = Field("", alias="RESEND_API_KEY")
-    email_from: str = "noreply@cryptoai.com"
+    email_from: str = "noreply@ai_crypto_insights.com"
     email_from_name: str = "CryptoAI Insights"
+
+    gmail_user: str = Field("", alias="SMTP_USER")
+    gmail_app_password: str = Field("", alias="SMTP_PASSWORD")
 
     # OTP
     otp_expire_minutes: int = 10
@@ -63,6 +70,9 @@ class Settings(BaseSettings):
     price_50_points: int = 500
     price_150_points: int = 1200
     price_500_points: int = 3500
+
+    
+
 
     # Binance
     binance_base_url: str = "https://api.binance.com"

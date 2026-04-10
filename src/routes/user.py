@@ -4,22 +4,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from src.core.redis import get_redis_client
 from src.core.database import get_db
 from src.models.user import User, UserRead
 from src.middlewares.auth import get_current_user
 from src.utils.security import hash_password, verify_password, create_access_token
-from src.utils.otp import create_otp, verify_otp as check_otp
+from src.utils.otp import _require_otp_verified, create_otp, verify_otp as check_otp
 from src.utils.email import send_otp_email, send_welcome_email
 from src.core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-
-
 # ═══════════════════════════════════════════════════════
 # SHARED RESPONSE HELPER
 # ═══════════════════════════════════════════════════════
+
 
 class AuthResponse(BaseModel):
     user: UserRead
@@ -42,6 +42,7 @@ def _make_auth_response(user: User, message: str = "Success") -> AuthResponse:
 # ═══════════════════════════════════════════════════════
 # REQUEST BODIES
 # ═══════════════════════════════════════════════════════
+
 
 class SignupRequest(BaseModel):
     name: str = Field(min_length=2, max_length=120)
@@ -92,6 +93,26 @@ class ForgotPasswordRequest(BaseModel):
         return v
 
 
+# ── POST /auth/set-password ───────────────────────────────────────────────────
+# Identical logic to forgot-password but guards that user has NO existing password.
+# Use this when a Google-only user wants to add password login.
+
+
+class SetPasswordRequest(BaseModel):
+    email: EmailStr
+    otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+    new_password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def strong_password(cls, v: str) -> str:
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one digit")
+        return v
+
+
 class GoogleRequest(BaseModel):
     id_token: str
 
@@ -114,6 +135,7 @@ class VerifyOtpResponse(BaseModel):
 
 # ── POST /auth/send-otp ───────────────────────────────────────────────────────
 
+
 @router.post("/send-otp", response_model=OtpResponse)
 async def send_otp(
     body: SendOtpRequest,
@@ -125,7 +147,7 @@ async def send_otp(
     - login/forgot:   reject if email NOT found.
     """
     result = await db.execute(select(User).where(User.email == body.email.lower()))
-    user = result.first()
+    user = result.scalar_one_or_none()
 
     if body.purpose == "signup" and user:
         raise HTTPException(
@@ -150,6 +172,7 @@ async def send_otp(
 
 # ── POST /auth/verify-otp ─────────────────────────────────────────────────────
 
+
 @router.post("/verify-otp", response_model=VerifyOtpResponse)
 async def verify_otp_endpoint(body: VerifyOtpRequest):
     """
@@ -167,69 +190,18 @@ async def verify_otp_endpoint(body: VerifyOtpRequest):
         return VerifyOtpResponse(verified=False, message="Invalid or expired code")
 
     # Store a short-lived verified flag (5 minutes) for the next step
-    from src.core.database import get_redis
-    redis = await get_redis()
+    redis = await get_redis_client()
     await redis.setex(
         f"otp_verified:{body.purpose}:{body.email.lower()}",
-        300,   # 5 minutes
+        300,  # 5 minutes
         "1",
     )
 
     return VerifyOtpResponse(verified=True, message="Email verified")
 
 
-# ── POST /auth/signup ─────────────────────────────────────────────────────────
-
-@router.post("/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
-async def signup(
-    body: SignupRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    email = body.email.lower()
-
-    # Race-condition safety: re-check uniqueness inside the transaction
-    existing = await db.execute(select(User).where(User.email == email))
-    if existing.first():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Email already registered",
-        )
-
-    # Accept EITHER the raw OTP (client sends it again) OR the verified flag
-    otp_valid = await check_otp(email, body.otp, "signup")
-    if not otp_valid:
-        from src.core.database import get_redis
-        redis = await get_redis()
-        flag = await redis.get(f"otp_verified:signup:{email}")
-        if not flag:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or expired verification code",
-            )
-        await redis.delete(f"otp_verified:signup:{email}")
-
-    user = User(
-        name=body.name.strip(),
-        email=email,
-        hashed_password=hash_password(body.password),
-        is_verified=True,
-        points=settings.free_signup_points,
-    )
-    db.add(user)
-    await db.flush()  # populate user.id before building the response
-
-    try:
-        await send_welcome_email(user.email, user.name, settings.free_signup_points)
-    except Exception:
-        pass  # non-critical
-
-    return _make_auth_response(
-        user,
-        f"Account created! {settings.free_signup_points} points added.",
-    )
-
-
 # ── POST /auth/login ──────────────────────────────────────────────────────────
+
 
 @router.post("/login", response_model=AuthResponse)
 async def login(
@@ -239,7 +211,7 @@ async def login(
     email = body.email.lower()
 
     result = await db.execute(select(User).where(User.email == email))
-    user = result.first()
+    user = result.scalar_one_or_none()
 
     if not user:
         raise HTTPException(
@@ -256,7 +228,7 @@ async def login(
         if not body.password or not user.hashed_password:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Password login not available for this account. Use Google or OTP.",
+                detail="You have not set password for this account. Use Google or OTP.",
             )
         if not verify_password(body.password, user.hashed_password):
             raise HTTPException(
@@ -280,7 +252,45 @@ async def login(
     return _make_auth_response(user, f"Welcome back, {user.name}!")
 
 
+@router.post(
+    "/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED
+)
+async def signup(
+    body: SignupRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    email = body.email.lower()
+
+    existing = await db.execute(select(User).where(User.email == email))
+    if existing.first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
+        )
+
+    await _require_otp_verified(email, "signup")
+
+    user = User(
+        name=body.name.strip(),
+        email=email,
+        hashed_password=hash_password(body.password),
+        is_verified=True,
+        points=settings.free_signup_points,
+    )
+    db.add(user)
+    await db.flush()
+
+    try:
+        await send_welcome_email(user.email, user.name, settings.free_signup_points)
+    except Exception:
+        pass
+
+    return _make_auth_response(
+        user, f"Account created! {settings.free_signup_points} points added."
+    )
+
+
 # ── POST /auth/google ─────────────────────────────────────────────────────────
+
 
 @router.post("/google", response_model=AuthResponse)
 async def google_login(
@@ -308,8 +318,8 @@ async def google_login(
             detail=f"Invalid Google token: {exc}",
         ) from exc
 
-    email    = idinfo["email"].lower()
-    name     = idinfo.get("name") or email.split("@")[0].capitalize()
+    email = idinfo["email"].lower()
+    name = idinfo.get("name") or email.split("@")[0].capitalize()
     verified = idinfo.get("email_verified", False)
 
     if not verified:
@@ -320,18 +330,23 @@ async def google_login(
 
     # 2. Find or create user — single session, no nested context managers
     result = await db.execute(select(User).where(User.email == email))
-    user = result.first()
+    user = result.scalar_one_or_none()
 
     if not user:
+        provider_id = idinfo["sub"]
+        image = idinfo.get("picture")
         user = User(
             name=name,
             email=email,
-            hashed_password=None,   # Google users authenticate via token, not password
+            hashed_password=None,
             is_verified=True,
             points=settings.free_signup_points,
+            provider="google",
+            provider_id=provider_id,
+            image=image,
         )
         db.add(user)
-        await db.flush()            
+        await db.flush()
 
         try:
             await send_welcome_email(user.email, user.name, settings.free_signup_points)
@@ -346,7 +361,33 @@ async def google_login(
     return _make_auth_response(user, f"Welcome, {user.name}!")
 
 
-# ── POST /auth/forgot-password ────────────────────────────────────────────────
+@router.post("/set-password")
+async def set_password(
+    body: SetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    email = body.email.lower()
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    if user.hashed_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A password is already set. Use forgot-password to change it.",
+        )
+
+    await _require_otp_verified(email, "forgot_password")
+
+    user.hashed_password = hash_password(body.new_password)
+    db.add(user)
+    return {
+        "message": "Password set successfully. You can now log in with your password."
+    }
+
 
 @router.post("/forgot-password")
 async def forgot_password(
@@ -355,34 +396,22 @@ async def forgot_password(
 ):
     email = body.email.lower()
 
-    # Accept raw OTP or the verified flag
-    otp_valid = await check_otp(email, body.otp, "forgot_password")
-    if not otp_valid:
-        from src.core.database import get_redis
-        redis = await get_redis()
-        flag = await redis.get(f"otp_verified:forgot_password:{email}")
-        if not flag:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or expired code",
-            )
-        await redis.delete(f"otp_verified:forgot_password:{email}")
+    await _require_otp_verified(email, "forgot_password")
 
     result = await db.execute(select(User).where(User.email == email))
-    user = result.first()
+    user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
     user.hashed_password = hash_password(body.new_password)
     db.add(user)
-
     return {"message": "Password reset successfully"}
 
 
 # ── GET /auth/me ──────────────────────────────────────────────────────────────
+
 
 @router.get("/me")
 async def get_profile(current_user: User = Depends(get_current_user)):
@@ -391,12 +420,13 @@ async def get_profile(current_user: User = Depends(get_current_user)):
     The frontend calls this to seed the NextAuth session after login.
     """
     return {
-        "user":   UserRead.model_validate(current_user),
+        "user": UserRead.model_validate(current_user),
         "points": current_user.points,
     }
 
 
 # ── POST /auth/logout ─────────────────────────────────────────────────────────
+
 
 @router.post("/logout")
 async def logout(current_user: User = Depends(get_current_user)):
