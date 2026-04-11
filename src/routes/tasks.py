@@ -1,17 +1,13 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func, desc
-from sqlmodel.ext.asyncio.session import AsyncSession
-
-from app.database import get_session
-from app.middleware.auth import get_current_user
-from app.models.user import User
-from app.models.task import (
-    Task, TaskStatus, TradingMode,
-    AnalyzeRequest, AnalyzeResponse,
-    TaskStatusResponse, HistoryItem, HistoryResponse, AIInsight,
-)
-from app.config import settings
+from src.services.analysis import run_analysis
+from src.core.database import get_db
+from src.middlewares.auth import get_current_user
+from src.models.task import AIInsight, AnalyzeRequest, AnalyzeResponse, HistoryItem, HistoryResponse, Task, TaskStatus, TaskStatusResponse
+from src.models.user import User
+from src.core.config import settings
 
 router = APIRouter(tags=["tasks"])
 
@@ -21,21 +17,18 @@ router = APIRouter(tags=["tasks"])
 @router.post("/analyze", response_model=AnalyzeResponse, status_code=status.HTTP_202_ACCEPTED)
 async def analyze(
     body: AnalyzeRequest,
-    db: AsyncSession = Depends(get_session),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Points check
     if current_user.points < settings.points_per_query:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=f"Insufficient points. Need {settings.points_per_query}, have {current_user.points}.",
         )
 
-    # Deduct optimistically (refunded on failure inside the worker)
     current_user.points -= settings.points_per_query
     db.add(current_user)
 
-    # Create task record
     task = Task(
         user_id=current_user.id,
         coin=body.coin,
@@ -46,11 +39,9 @@ async def analyze(
         points_deducted=settings.points_per_query,
     )
     db.add(task)
-    await db.flush()   # get task.id before commit
+    await db.flush()
 
-    # Dispatch Celery task
-    from app.workers.tasks import run_analysis_task
-    celery_job = run_analysis_task.delay(
+    celery_job = run_analysis.delay(
         task.id,
         current_user.id,
         task.coin,
@@ -69,13 +60,13 @@ async def analyze(
 @router.get("/task-status/{task_id}", response_model=TaskStatusResponse)
 async def get_task_status(
     task_id: str,
-    db: AsyncSession = Depends(get_session),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.exec(
+    result = await db.execute(
         select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
     )
-    task = result.first()
+    task = result.scalar_one_or_none()
 
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
@@ -103,26 +94,24 @@ async def get_task_status(
 async def get_history(
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=20, ge=1, le=100),
-    db: AsyncSession = Depends(get_session),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     offset = (page - 1) * per_page
 
-    # Total count
-    count_res = await db.exec(
+    count_res = await db.execute(
         select(func.count()).where(Task.user_id == current_user.id).select_from(Task)
     )
-    total = count_res.one()
+    total = count_res.scalar_one()
 
-    # Page of tasks
-    tasks_res = await db.exec(
+    tasks_res = await db.execute(
         select(Task)
         .where(Task.user_id == current_user.id)
         .order_by(desc(Task.created_at))
         .offset(offset)
         .limit(per_page)
     )
-    tasks = tasks_res.all()
+    tasks = tasks_res.scalars().all()
 
     items = [
         HistoryItem(
@@ -146,13 +135,13 @@ async def get_history(
 @router.get("/history/{task_id}", response_model=TaskStatusResponse)
 async def get_history_item(
     task_id: str,
-    db: AsyncSession = Depends(get_session),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.exec(
+    result = await db.execute(
         select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
     )
-    task = result.first()
+    task = result.scalar_one_or_none()
 
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")

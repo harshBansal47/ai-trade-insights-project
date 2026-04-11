@@ -7,6 +7,7 @@ from src.models import *
 from src.core.config import settings
 from src.core.database import DatabaseManager
 from src.routes import user as auth
+from src.routes import tasks as task
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,6 +40,7 @@ def create_app() -> FastAPI:
 
     # ── Routers ───────────────────────────────────────────────────────────────
     app.include_router(auth.router)
+    app.include_router(task.router)
 
 
     # ── Health check ──────────────────────────────────────────────────────────

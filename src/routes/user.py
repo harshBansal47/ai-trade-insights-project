@@ -1,9 +1,8 @@
-from typing import AsyncGenerator, Literal
+from typing import  Literal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from pydantic import BaseModel, EmailStr, Field, field_validator
-
 from src.core.redis import get_redis_client
 from src.core.database import get_db
 from src.models.user import User, UserRead
