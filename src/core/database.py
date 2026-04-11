@@ -1,4 +1,6 @@
 from typing import AsyncGenerator, Optional
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     create_async_engine,
@@ -15,72 +17,111 @@ class DatabaseManager:
         if DatabaseManager._instance is not None:
             raise Exception("Use get_instance() instead")
 
-        # ✅ Engine (Supabase-safe config)
-        self.engine = create_async_engine(
-            settings.database_url,
+        # ── ASYNC engine — FastAPI routes ────────────────────────────────
+        self._async_engine = create_async_engine(
+            settings.async_database_url,        # postgresql+asyncpg://...
             echo=settings.debug,
             pool_pre_ping=True,
-            poolclass=NullPool,  # ✅ IMPORTANT for Supabase
+            poolclass=NullPool,
             connect_args={"statement_cache_size": 0},
         )
 
-        # ✅ Session factory
-        self.session_factory = async_sessionmaker(
-            self.engine,
+        self._async_session_factory = async_sessionmaker(
+            self._async_engine,
             class_=AsyncSession,
+            expire_on_commit=False,
+        )
+
+        # ── SYNC engine — Celery tasks ───────────────────────────────────
+        self._sync_engine = create_engine(
+            settings.sync_database_url,         # postgresql+psycopg2://...
+            echo=settings.debug,
+            pool_pre_ping=True,
+            poolclass=NullPool,
+        )
+
+        self._sync_session_factory = sessionmaker(
+            bind=self._sync_engine,
+            class_=Session,
             expire_on_commit=False,
         )
 
         DatabaseManager._instance = self
 
-    # ── Singleton Access ─────────────────────────────────────────────
+    # ── Singleton ────────────────────────────────────────────────────────
     @classmethod
     def get_instance(cls) -> "DatabaseManager":
         if cls._instance is None:
             cls._instance = DatabaseManager()
         return cls._instance
 
-    # ── Startup Hook ─────────────────────────────────────────────
+    # ── Lifecycle ────────────────────────────────────────────────────────
     async def connect(self):
-        """Called on FastAPI startup"""
-        # Test DB connection
-        async with self.engine.begin() as conn:
+        """Called on FastAPI startup — tests async connection."""
+        async with self._async_engine.begin() as conn:
             await conn.run_sync(lambda conn: None)
+        print("✅ Database connected")
 
-        print("✅ Database & Redis connected")
-
-    # ── Shutdown Hook ─────────────────────────────────────────────
     async def disconnect(self):
-        await self.engine.dispose()
-        print("🔴 Database & Redis disconnected")
+        """Called on FastAPI shutdown — disposes both engines."""
+        await self._async_engine.dispose()
+        self._sync_engine.dispose()
+        print("🔴 Database disconnected")
 
-    # ── Session Generator ─────────────────────────────────────────
-    async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
-        async with self.session_factory() as session:
+    # ── ASYNC session — for FastAPI / async code ─────────────────────────
+    async def open_async_session(self) -> AsyncGenerator[AsyncSession, None]:
+        """
+        Yields a managed AsyncSession.
+        Commits on success, rolls back on exception, always closes.
+
+        Used by: get_async_db() FastAPI dependency.
+        """
+        async with self._async_session_factory() as async_session:
             try:
-                yield session
-                await session.commit()
+                yield async_session
+                await async_session.commit()
             except Exception:
-                await session.rollback()
+                await async_session.rollback()
                 raise
 
-    # ── Manual Session (if needed outside DI) ─────────────────────
-    async def session(self) -> AsyncSession:
-        return self.session_factory()
-    
+    # ── SYNC session — for Celery tasks ──────────────────────────────────
+    def open_sync_session(self) -> Session:
+        """
+        Returns a sync Session as a context manager.
+        Caller is responsible for commit/rollback.
 
-# ═══════════════════════════════════════════════════════
-# DATABASE DEPENDENCY
-# Wraps DatabaseManager.get_session() (async generator)
-# into a FastAPI-compatible Depends()-able function.
-# All endpoints receive `db` via Depends(get_db).
-# ═══════════════════════════════════════════════════════
+        Used by: get_sync_db() Celery helper.
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+        Usage:
+            with DatabaseManager.get_instance().open_sync_session() as sync_db:
+                task = sync_db.get(Task, task_id)
+                task.status = TaskStatus.COMPLETED
+                sync_db.commit()
+        """
+        return self._sync_session_factory()
+
+
+# ── FastAPI dependency ────────────────────────────────────────────────────────
+
+async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
     """
-    FastAPI dependency that yields a session from the singleton
-    DatabaseManager. The session is committed on success and
-    rolled back on any exception — exactly as the manager defines.
+    Inject an AsyncSession into FastAPI route handlers.
+
+        async def my_route(async_db: AsyncSession = Depends(get_async_db)):
+            ...
     """
-    async for session in DatabaseManager.get_instance().get_session():
-        yield session
+    async for async_session in DatabaseManager.get_instance().open_async_session():
+        yield async_session
+
+
+# ── Celery helper ─────────────────────────────────────────────────────────────
+
+def get_sync_db() -> Session:
+    """
+    Returns a sync Session context manager for use inside Celery tasks.
+
+        with get_sync_db() as sync_db:
+            task = sync_db.get(Task, task_id)
+            ...
+    """
+    return DatabaseManager.get_instance().open_sync_session()
