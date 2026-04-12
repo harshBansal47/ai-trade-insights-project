@@ -1,13 +1,11 @@
 import os
 import time
-import redis
 import pandas as pd
 from typing import Optional, List, Dict, Any
 from concurrent.futures import ProcessPoolExecutor
 import orjson
 
 from src.core.logger import setup_logger
-from src.core.redis import get_redis_client
 
 logger = setup_logger(__name__)
 
@@ -28,38 +26,60 @@ TIMEFRAME_SECONDS: Dict[str, int] = {
 
 _loads = orjson.loads
 
+# ---------------------------------------------------------------------------
+# Per-process Redis client — set once by _init_worker
+# ---------------------------------------------------------------------------
+_process_redis = None
 
-# ---------------------------------------------------------------------------
-# CoinsDataLoader
-# ---------------------------------------------------------------------------
+
+def _init_worker():
+    """
+    Called ONCE per worker process by ProcessPoolExecutor initializer.
+    Creates a clean Redis client per process — avoids forked socket issues.
+    """
+    global _process_redis
+    from redis import ConnectionPool, Redis
+
+    pool = ConnectionPool.from_url(
+        "redis://localhost:6379",
+        max_connections=5,      
+        decode_responses=False,  
+    )
+    _process_redis = Redis(connection_pool=pool)
+    logger.info(f"[WORKER INIT] Redis ready | pid={os.getpid()}")
+
+
+
 class CoinsDataLoader:
 
-    def __init__(self, redis_client: redis.Redis) -> None:
+    def __init__(self, redis_client) -> None:
         self.redis_client = redis_client
 
-    def process_symbol(
-        self,
-        symbol: str,
-        timeframe: str,
-        fill_gaps: bool = True,
-    ) -> Optional[pd.DataFrame]:
-
-        logger.info(f"[PROCESS] {symbol} | {timeframe}")
+    def process_symbol(self, symbol, timeframe, fill_gaps=True):
+        logger.info(f"[PROCESS LOADING DATA] {symbol} | {timeframe}")
 
         filepath = self.get_coins_file_path(symbol, timeframe)
-
-        df_file = self._load_from_file(filepath)
         df_redis = self._load_from_redis(symbol, timeframe)
-        df_file.sort_values(by="timestamp", inplace=True) if df_file is not None else None
-        df_redis.sort_values(by="timestamp", inplace=True) if df_redis is not None else None
-        df_file = self.validate_dataframe_recency(df_file,max_delay_seconds=90000) if df_file is not None else None
-        df_redis = self.validate_dataframe_recency(df_redis) if df_redis is not None else None
+        df_file  = self._load_from_file(filepath)
 
+        if df_redis is not None:
+            df_redis = self.validate_dataframe_recency(df_redis)
+            if df_redis is None:
+                logger.warning(f"[REDIS STALE] {symbol} | {timeframe}")
+
+        if df_redis is None and df_file is not None:
+            df_file = self.validate_dataframe_recency(df_file, max_delay_seconds=120)
+        elif df_file is not None:  # df_redis is not None here
+            df_file = self.validate_dataframe_recency(df_file, max_delay_seconds=90000)
 
         df = self._merge(df_file, df_redis)
-
         if df is None or df.empty:
             logger.warning(f"[NO DATA] {symbol} | {timeframe}")
+            return None
+
+        df = self.validate_dataframe_recency(df)
+        if df is None or df.empty:
+            logger.warning(f"[STALE AFTER MERGE] {symbol} | {timeframe}")
             return None
 
         if fill_gaps:
@@ -82,7 +102,7 @@ class CoinsDataLoader:
         except Exception as exc:
             logger.error(f"[FILE ERROR] {filepath} | {exc}")
             return None
-
+        
     def _load_from_redis(
         self,
         symbol: str,
@@ -93,11 +113,13 @@ class CoinsDataLoader:
 
         try:
             raw_items = self.redis_client.lrange(key, 0, -1)
-
             if not raw_items:
                 return None
 
             rows = [_loads(item) for item in raw_items if item]
+
+            if not rows:
+                return None
 
             df = pd.DataFrame(rows)
 
@@ -111,8 +133,13 @@ class CoinsDataLoader:
             logger.error(f"[REDIS ERROR] {key} | {exc}", exc_info=True)
             return None
 
+
     @staticmethod
-    def _merge(df_file, df_redis):
+    def _merge(
+        df_file: Optional[pd.DataFrame],
+        df_redis: Optional[pd.DataFrame],
+    ) -> Optional[pd.DataFrame]:
+
         frames = [f for f in (df_file, df_redis) if f is not None]
 
         if not frames:
@@ -157,7 +184,7 @@ class CoinsDataLoader:
     def validate_dataframe_recency(
             self,
     df: pd.DataFrame,
-    max_delay_seconds: int = 120,  # 2 minutes
+    max_delay_seconds: int = 120,  
 ) -> Optional[pd.DataFrame]:
         try:
             latest_ts = int(df["timestamp"].iloc[-1])
@@ -182,18 +209,16 @@ class CoinsDataLoader:
             return None
 
 
+
 # ---------------------------------------------------------------------------
-# WORKER FUNCTIONS (TOP LEVEL ONLY)
+# Worker functions — must be top-level for pickle (ProcessPoolExecutor)
 # ---------------------------------------------------------------------------
 
-
-def _worker(symbol: str, timeframe: str, fill_gaps: bool):
-    logger.info(f"[WORKER START] {symbol} | {timeframe}")
+def _worker(symbol: str, timeframe: str, fill_gaps: bool) -> Dict[str, Any]:
+    logger.info(f"[WORKER START] {symbol} | {timeframe} | pid={os.getpid()}")
 
     try:
-        redis_client = get_redis_client()
-
-        loader = CoinsDataLoader(redis_client)
+        loader = CoinsDataLoader(_process_redis)   
         df = loader.process_symbol(symbol, timeframe, fill_gaps)
 
         if df is None:
@@ -201,13 +226,16 @@ def _worker(symbol: str, timeframe: str, fill_gaps: bool):
                 "status": "skipped",
                 "symbol": symbol,
                 "timeframe": timeframe,
+                "rows": 0,
+                "df": None,
             }
 
         return {
             "status": "success",
             "symbol": symbol,
             "timeframe": timeframe,
-            "df":df
+            "rows": len(df),    
+            "df": df,
         }
 
     except Exception as e:
@@ -216,17 +244,15 @@ def _worker(symbol: str, timeframe: str, fill_gaps: bool):
             "status": "error",
             "symbol": symbol,
             "timeframe": timeframe,
+            "rows": 0,
+            "df": None,
             "error": str(e),
         }
-
 
 
 def _worker_unpack(args):
     return _worker(*args)
 
-# ---------------------------------------------------------------------------
-# MAIN FUNCTION
-# ---------------------------------------------------------------------------
 
 
 def process_symbol_multi_timeframe(
@@ -243,9 +269,11 @@ def process_symbol_multi_timeframe(
 
     args = [(symbol, tf, fill_gaps) for tf in timeframes]
 
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    with ProcessPoolExecutor(
+        max_workers=max_workers,
+        initializer=_init_worker,   
+    ) as executor:
         results = list(executor.map(_worker_unpack, args))
 
-    logger.info(f"[MULTI TF DONE] {symbol}")
-
+    logger.info(f"[MULTI TF DONE] {symbol} | results={len(results)}")
     return results

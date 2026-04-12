@@ -100,3 +100,56 @@ Trying to import the above resulted in these errors:
 2026-04-12 19:09:32 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775948400 current=1776001172 delay=52772s
 2026-04-12 19:09:32 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 15m | rows=10000
 2026-04-12 19:09:39 | INFO | src.helpers.data_loader | [MULTI TF DONE] BTCUSDT
+2026-04-13 02:09:11 | INFO | src.helpers.data_loader | [MULTI TF START] BTCUSDT | ['1m', '5m', '15m']
+2026-04-13 02:09:32 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 1m
+2026-04-13 02:10:05 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 1m
+2026-04-13 02:12:55 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949720 current=1776026565 delay=76845s
+2026-04-13 02:25:45 | INFO | src.helpers.data_loader | [MULTI TF DATA LOADING START] BTCUSDT | ['1m', '5m', '15m']
+2026-04-13 02:25:45 | INFO | src.helpers.data_loader | [DATA LOADER WORKER START] BTCUSDT | 1m
+2026-04-13 02:25:51 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 1m
+2026-04-13 02:26:41 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949720 current=1776027401 delay=77681s
+2026-04-13 02:26:45 | WARNING | src.helpers.data_loader | [STRICT FALLBACK] Redis missing, enforcing strict recency on file for BTCUSDT
+2026-04-13 02:26:46 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949720 current=1776027406 delay=77686s
+2026-04-13 02:26:46 | WARNING | src.helpers.data_loader | [DF STALE] delay=77686s > allowed=120s
+2026-04-13 02:26:49 | WARNING | src.helpers.data_loader | [NO DATA] BTCUSDT | 1m
+2026-04-13 02:56:41 | INFO | src.helpers.data_loader | [MULTI TF DATA LOADING START] BTCUSDT | ['1m', '5m', '15m']
+2026-04-13 02:56:41 | INFO | src.helpers.data_loader | [DATA LOADER WORKER START] BTCUSDT | 1m
+2026-04-13 02:57:28 | INFO | src.helpers.data_loader | [MULTI TF DATA LOADING START] BTCUSDT | ['1m', '5m', '15m']
+2026-04-13 02:57:28 | INFO | src.helpers.data_loader | [DATA LOADER WORKER START] BTCUSDT | 1m
+2026-04-13 02:57:32 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 1m
+2026-04-13 02:57:45 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949720 current=1776029265 delay=79545s
+2026-04-13 02:57:45 | WARNING | src.helpers.data_loader | [DF STALE] delay=79545s > allowed=120s
+2026-04-13 02:58:32 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949720 current=1776029310 delay=79590s
+2026-04-13 02:59:05 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949720 current=1776029345 delay=79625s
+2026-04-13 02:59:05 | WARNING | src.helpers.data_loader | [DF STALE] delay=79625s > allowed=120s
+2026-04-13 02:59:40 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949720 current=1776029380 delay=79660s
+2026-04-13 02:59:40 | WARNING | src.helpers.data_loader | [DF STALE] delay=79660s > allowed=120s
+2026-04-13 02:59:56 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949720 current=1776029393 delay=79673s
+2026-04-13 03:00:08 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 1m | rows=10000
+2026-04-13 03:00:23 | INFO | src.helpers.data_loader | [DATA LOADER WORKER START] BTCUSDT | 5m
+2026-04-13 03:00:23 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 5m
+2026-04-13 03:00:23 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949300 current=1776029423 delay=80123s
+2026-04-13 03:00:23 | WARNING | src.helpers.data_loader | [DF STALE] delay=80123s > allowed=120s
+2026-04-13 03:00:23 | WARNING | src.helpers.data_loader | [NO DATA] BTCUSDT | 5m
+2026-04-13 03:00:23 | INFO | src.helpers.data_loader | [DATA LOADER WORKER START] BTCUSDT | 15m
+2026-04-13 03:00:23 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 15m
+2026-04-13 03:00:23 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775948400 current=1776029423 delay=81023s
+2026-04-13 03:00:23 | WARNING | src.helpers.data_loader | [DF STALE] delay=81023s > allowed=120s
+2026-04-13 03:00:23 | WARNING | src.helpers.data_loader | [NO DATA] BTCUSDT | 15m
+2026-04-13 03:01:17 | INFO | src.helpers.data_loader | [MULTI TF DATA LOADING START] BTCUSDT | ['1m', '5m', '15m']
+2026-04-13 03:01:17 | INFO | src.helpers.data_loader | [DATA LOADER WORKER START] BTCUSDT | 1m
+2026-04-13 03:01:17 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 1m
+2026-04-13 03:01:17 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949720 current=1776029477 delay=79757s
+2026-04-13 03:01:17 | WARNING | src.helpers.data_loader | [DF STALE] delay=79757s > allowed=120s
+2026-04-13 03:01:17 | WARNING | src.helpers.data_loader | [NO DATA] BTCUSDT | 1m
+2026-04-13 03:01:17 | INFO | src.helpers.data_loader | [DATA LOADER WORKER START] BTCUSDT | 5m
+2026-04-13 03:01:17 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 5m
+2026-04-13 03:01:17 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949300 current=1776029477 delay=80177s
+2026-04-13 03:01:17 | WARNING | src.helpers.data_loader | [DF STALE] delay=80177s > allowed=120s
+2026-04-13 03:01:17 | WARNING | src.helpers.data_loader | [NO DATA] BTCUSDT | 5m
+2026-04-13 03:01:17 | INFO | src.helpers.data_loader | [DATA LOADER WORKER START] BTCUSDT | 15m
+2026-04-13 03:01:17 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 15m
+2026-04-13 03:01:17 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775948400 current=1776029477 delay=81077s
+2026-04-13 03:01:17 | WARNING | src.helpers.data_loader | [DF STALE] delay=81077s > allowed=120s
+2026-04-13 03:01:17 | WARNING | src.helpers.data_loader | [NO DATA] BTCUSDT | 15m
+2026-04-13 03:01:22 | INFO | src.helpers.data_loader | [MULTI TF DATA LOADING DONE] BTCUSDT
