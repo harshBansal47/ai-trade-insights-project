@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from src.core.redis import get_redis_client
+from src.core.redis import get_async_redis_client as get_redis_client
 from src.core.database import get_async_db as get_db
 from src.models.user import User, UserRead
 from src.middlewares.auth import get_current_user

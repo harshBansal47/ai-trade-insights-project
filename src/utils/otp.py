@@ -2,7 +2,7 @@ import random
 import string
 from fastapi import status
 from fastapi import HTTPException
-from src.core.redis import get_redis_client
+from src.core.redis import get_async_redis_client as get_redis_client
 from src.core.config import settings
 
 
