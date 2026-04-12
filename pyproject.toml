@@ -12,6 +12,7 @@ dependencies = [
     "langchain-google-genai>=4.2.1",
     "pandas>=3.0.2",
     "passlib[bcrypt]>=1.7.4",
+    "psycopg2-binary>=2.9.11",
     "pyarrow>=23.0.1",
     "pydantic-settings>=2.13.1",
     "python-jose[cryptography]>=3.5.0",

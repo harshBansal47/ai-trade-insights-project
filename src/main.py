@@ -8,17 +8,21 @@ from src.core.config import settings
 from src.core.database import DatabaseManager
 from src.routes import user as auth
 from src.routes import tasks as task
+from src.core.redis import  redis_client as redis_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db_manager = DatabaseManager.get_instance()
     await db_manager.connect()
 
-    async with db_manager.engine.begin() as conn:
+    async with db_manager._async_engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+    
+    redis_manager.ping()
         
     yield
     await db_manager.disconnect()
+    redis_manager.close()
 
 
 def create_app() -> FastAPI:

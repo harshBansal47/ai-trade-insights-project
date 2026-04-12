@@ -37,7 +37,7 @@ class CoinsDataLoader:
     def __init__(self, redis_client: redis.Redis) -> None:
         self.redis_client = redis_client
 
-    async def process_symbol(
+    def process_symbol(
         self,
         symbol: str,
         timeframe: str,
@@ -49,7 +49,7 @@ class CoinsDataLoader:
         filepath = self.get_coins_file_path(symbol, timeframe)
 
         df_file = self._load_from_file(filepath)
-        df_redis = await self._load_from_redis(symbol, timeframe)
+        df_redis = self._load_from_redis(symbol, timeframe)
         df_file.sort_values(by="timestamp", inplace=True) if df_file is not None else None
         df_redis.sort_values(by="timestamp", inplace=True) if df_redis is not None else None
         df_file = self.validate_dataframe_recency(df_file,max_delay_seconds=90000) if df_file is not None else None
@@ -83,7 +83,7 @@ class CoinsDataLoader:
             logger.error(f"[FILE ERROR] {filepath} | {exc}")
             return None
 
-    async def _load_from_redis(
+    def _load_from_redis(
         self,
         symbol: str,
         timeframe: str,
@@ -92,7 +92,7 @@ class CoinsDataLoader:
         key = f"{symbol}:{timeframe}"
 
         try:
-            raw_items = await self.redis_client.lrange(key, 0, -1)
+            raw_items = self.redis_client.lrange(key, 0, -1)
 
             if not raw_items:
                 return None
@@ -108,7 +108,7 @@ class CoinsDataLoader:
             return df
 
         except Exception as exc:
-            logger.error(f"[REDIS ERROR] {key} | {exc}")
+            logger.error(f"[REDIS ERROR] {key} | {exc}", exc_info=True)
             return None
 
     @staticmethod
@@ -187,14 +187,14 @@ class CoinsDataLoader:
 # ---------------------------------------------------------------------------
 
 
-async def _worker(symbol: str, timeframe: str, fill_gaps: bool):
+def _worker(symbol: str, timeframe: str, fill_gaps: bool):
     logger.info(f"[WORKER START] {symbol} | {timeframe}")
 
     try:
-        redis_client =await get_redis_client()
+        redis_client = get_redis_client()
 
         loader = CoinsDataLoader(redis_client)
-        df =await loader.process_symbol(symbol, timeframe, fill_gaps)
+        df = loader.process_symbol(symbol, timeframe, fill_gaps)
 
         if df is None:
             return {
@@ -207,7 +207,7 @@ async def _worker(symbol: str, timeframe: str, fill_gaps: bool):
             "status": "success",
             "symbol": symbol,
             "timeframe": timeframe,
-            "rows": len(df),
+            "df":df
         }
 
     except Exception as e:
@@ -220,9 +220,9 @@ async def _worker(symbol: str, timeframe: str, fill_gaps: bool):
         }
 
 
+
 def _worker_unpack(args):
     return _worker(*args)
-
 
 # ---------------------------------------------------------------------------
 # MAIN FUNCTION

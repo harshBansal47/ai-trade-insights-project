@@ -19,7 +19,7 @@ class DatabaseManager:
 
         # ── ASYNC engine — FastAPI routes ────────────────────────────────
         self._async_engine = create_async_engine(
-            settings.async_database_url,        # postgresql+asyncpg://...
+            settings.database_url_async,    
             echo=settings.debug,
             pool_pre_ping=True,
             poolclass=NullPool,
@@ -34,7 +34,7 @@ class DatabaseManager:
 
         # ── SYNC engine — Celery tasks ───────────────────────────────────
         self._sync_engine = create_engine(
-            settings.sync_database_url,         # postgresql+psycopg2://...
+            settings.database_url_sync,        
             echo=settings.debug,
             pool_pre_ping=True,
             poolclass=NullPool,

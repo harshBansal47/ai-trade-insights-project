@@ -23,8 +23,8 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
 
     # Database
-    database_url: str =  Field("", alias="SUPABASE_DATABASE_CONNECTION_STRING")
-    database_url_sync: str = ""
+    database_url_async: str =  Field("", alias="SUPABASE_DATABASE_CONNECTION_STRING_ASYNC")
+    database_url_sync: str =  Field("", alias="SUPABASE_DATABASE_CONNECTION_STRING_SYNC")
 
     # Redis / Celery
     redis_url: str = "redis://localhost:6379"

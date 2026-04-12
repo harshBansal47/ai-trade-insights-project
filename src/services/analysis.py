@@ -1,284 +1,290 @@
-from enum import Enum
-from typing import Optional
+import os
+import time
+import pandas as pd
+from typing import Optional, List, Dict, Any
+from concurrent.futures import ProcessPoolExecutor
+import orjson
 
-from src.core.celery import celery_app as celery
 from src.core.logger import setup_logger
-from src.core.database import SyncSessionLocal  # you need a sync session for Celery
-
-from src.helpers.indicator_features import (
-    get_atr_features,
-    get_macd_features,
-    get_rsi_features,
-    get_trend,
-)
-
-from src.helpers.reasoning import (
-    compute_confluence,
-    compute_score,
-    detect_fake_signal,
-    detect_order_blocks,
-    enrich_price_action,
-    get_sr_zones,
-)
-
-from src.constants import MODE_TIMEFRAMES
-from src.helpers.data_loader import process_symbol_multi_timeframe
-from src.models.task import Task, TaskStatus
 
 logger = setup_logger(__name__)
 
+BASE_DIR_HIST_DATA = "/home/harsh-bansal/Downloads/hist-coins-data"
+
+TIMEFRAME_SECONDS: Dict[str, int] = {
+    "5s": 5,
+    "15s": 15,
+    "30s": 30,
+    "1m": 60,
+    "3m": 180,
+    "5m": 300,
+    "15m": 900,
+    "30m": 1800,
+    "1h": 3600,
+    "4h": 14400,
+}
+
+_loads = orjson.loads
 
 # ---------------------------------------------------------------------------
-# MODE ENUM
+# Per-process Redis client — set once by _init_worker
 # ---------------------------------------------------------------------------
-class Mode(Enum):
-    SCALPER = "SCALPER"
-    SWING = "SWING"
-    POSITION = "POSITION"
+_process_redis = None
 
 
-# ---------------------------------------------------------------------------
-# CELERY TASK  — signature now matches exactly what the router sends
-# ---------------------------------------------------------------------------
-@celery.task(
-    bind=True,
-    name="tasks.run_analysis",
-    max_retries=3,
-    default_retry_delay=10,
-)
-def run_analysis(
-    self,
-    task_id: str,
-    user_id: str,
-    coin: str,
-    coin_symbol: str,
-    mode_value: str,
-    message: str,
-) -> Optional[dict]:
+def _init_worker():
+    """
+    Called ONCE per worker process by ProcessPoolExecutor initializer.
+    Creates a clean Redis client per process — avoids forked socket issues.
+    """
+    global _process_redis
+    from redis import ConnectionPool, Redis
 
-    logger.info(
-        f"[TASK START] id={self.request.id} task_id={task_id} "
-        f"symbol={coin_symbol} mode={mode_value}"
+    pool = ConnectionPool.from_url(
+        "redis://localhost:6379",
+        max_connections=5,       # small — each process has its own
+        decode_responses=False,  # raw bytes for orjson
     )
+    _process_redis = Redis(connection_pool=pool)
+    logger.info(f"[WORKER INIT] Redis ready | pid={os.getpid()}")
 
-    # ── Mark task as PROCESSING ──────────────────────────────────────────
-    _update_task(task_id, status=TaskStatus.PROCESSING)
 
-    # ── Load market data ─────────────────────────────────────────────────
-    try:
-        mode_timeframes = MODE_TIMEFRAMES[mode_value]
+# ---------------------------------------------------------------------------
+# CoinsDataLoader
+# ---------------------------------------------------------------------------
+class CoinsDataLoader:
 
-        raw_data = process_symbol_multi_timeframe(
-            symbol=coin_symbol, timeframes=mode_timeframes
+    def __init__(self, redis_client) -> None:
+        self.redis_client = redis_client
+
+    def process_symbol(
+        self,
+        symbol: str,
+        timeframe: str,
+        fill_gaps: bool = True,
+    ) -> Optional[pd.DataFrame]:
+
+        logger.info(f"[PROCESS] {symbol} | {timeframe}")
+
+        filepath = self.get_coins_file_path(symbol, timeframe)
+
+        df_file = self._load_from_file(filepath)
+        df_redis = self._load_from_redis(symbol, timeframe)
+
+        if df_file is not None:
+            df_file.sort_values(by="timestamp", inplace=True)
+
+        if df_redis is not None:
+            df_redis.sort_values(by="timestamp", inplace=True)
+
+        # File data: allow larger delay (historical data)
+        df_file = (
+            self._validate_recency(df_file, max_delay_seconds=90000)
+            if df_file is not None
+            else None
+        )
+        # Redis data: must be fresh (default 2 min)
+        df_redis = (
+            self._validate_recency(df_redis)
+            if df_redis is not None
+            else None
         )
 
-        logger.info(
-            f"[DATA LOADED] symbol={coin_symbol} tf_count={len(raw_data)}"
-        )
+        df = self._merge(df_file, df_redis)
 
-    except Exception as exc:
-        logger.error(
-            f"[TASK ERROR - DATA LOAD] symbol={coin_symbol} error={exc}",
-            exc_info=True,
-        )
-        _update_task(task_id, status=TaskStatus.FAILED, error=str(exc))
-        raise self.retry(exc=exc)
-
-    # ── Build report ─────────────────────────────────────────────────────
-    try:
-        report = assemble_report(
-            symbol=coin_symbol,
-            mode=mode_value,
-            raw_data=raw_data,
-        )
-
-        if report is None:
-            logger.warning(f"[EMPTY REPORT] symbol={coin_symbol}")
-            _update_task(
-                task_id,
-                status=TaskStatus.FAILED,
-                error="Analysis returned no data.",
-            )
+        if df is None or df.empty:
+            logger.warning(f"[NO DATA] {symbol} | {timeframe}")
             return None
 
-        # ── Save result and mark COMPLETED ────────────────────────────
-        _update_task(
-            task_id,
-            status=TaskStatus.COMPLETED,
-            result=report,
-        )
+        if fill_gaps:
+            df = self._fill_time_gaps(df, timeframe)
 
-        logger.info(f"[TASK SUCCESS] task_id={task_id} symbol={coin_symbol}")
-        return report
+        logger.info(f"[SUCCESS] {symbol} | {timeframe} | rows={len(df)}")
+        return df
 
-    except Exception as exc:
-        logger.error(
-            f"[TASK ERROR - REPORT BUILD] symbol={coin_symbol} error={exc}",
-            exc_info=True,
-        )
-        _update_task(task_id, status=TaskStatus.FAILED, error=str(exc))
-        raise self.retry(exc=exc)
+    # ── Static helpers ───────────────────────────────────────────────────
 
+    @staticmethod
+    def get_coins_file_path(coin: str, timeframe: str) -> str:
+        return os.path.join(BASE_DIR_HIST_DATA, coin, f"{coin}_{timeframe}.parquet")
 
-# ---------------------------------------------------------------------------
-# DB HELPER — sync because Celery workers are synchronous
-# ---------------------------------------------------------------------------
-def _update_task(
-    task_id: str,
-    status: TaskStatus,
-    result: Optional[dict] = None,
-    error: Optional[str] = None,
-) -> None:
-    """Open a short-lived sync session, update the Task row, and close."""
-    from datetime import datetime, timezone
+    @staticmethod
+    def _load_from_file(filepath: str) -> Optional[pd.DataFrame]:
+        if not os.path.exists(filepath):
+            return None
+        try:
+            df = pd.read_parquet(filepath)
+            return df if not df.empty else None
+        except Exception as exc:
+            logger.error(f"[FILE ERROR] {filepath} | {exc}")
+            return None
 
-    try:
-        with SyncSessionLocal() as db:
-            task = db.get(Task, task_id)
+    def _load_from_redis(
+        self,
+        symbol: str,
+        timeframe: str,
+    ) -> Optional[pd.DataFrame]:
 
-            if not task:
-                logger.warning(f"[UPDATE TASK] task_id={task_id} not found")
-                return
-
-            task.status = status
-
-            if result is not None:
-                task.result = result
-
-            if error is not None:
-                task.error = error
-
-            if status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
-                task.completed_at = datetime.now(timezone.utc)
-
-            db.add(task)
-            db.commit()
-
-            logger.info(f"[TASK UPDATED] task_id={task_id} status={status}")
-
-    except Exception as e:
-        logger.error(f"[DB UPDATE ERROR] task_id={task_id} error={e}", exc_info=True)
-
-
-# ---------------------------------------------------------------------------
-# REPORT ASSEMBLY
-# ---------------------------------------------------------------------------
-def assemble_report(
-    symbol: str,
-    mode: str,
-    raw_data: list[dict],
-) -> Optional[dict]:
-
-    logger.info(f"[ASSEMBLE REPORT] symbol={symbol}")
-
-    tf_features: dict[str, dict] = {}
-
-    for result in raw_data:
-        tf = result["timeframe"]
-
-        if result["status"] != "success" or result.get("rows", 0) == 0:
-            logger.warning(f"[SKIP TF] {symbol} | {tf}")
-            continue
+        key = f"{symbol}:{timeframe}"
 
         try:
-            logger.info(f"[BUILD TF FEATURES] {symbol} | {tf}")
-            tf_features[tf] = build_timeframe_features(result["df"], mode)
+            raw_items = self.redis_client.lrange(key, 0, -1)
+
+            if not raw_items:
+                return None
+
+            rows = [_loads(item) for item in raw_items if item]
+
+            if not rows:
+                return None
+
+            df = pd.DataFrame(rows)
+
+            if "timestamp" not in df.columns:
+                logger.warning(f"[REDIS ERROR] Missing timestamp | {key}")
+                return None
+
+            return df
 
         except Exception as exc:
-            logger.error(
-                f"[TF BUILD ERROR] {symbol} | {tf} | {exc}",
-                exc_info=True,
-            )
+            logger.error(f"[REDIS ERROR] {key} | {exc}", exc_info=True)
             return None
 
-    if not tf_features:
-        logger.warning(f"[NO VALID TF FEATURES] symbol={symbol}")
-        return None
+    @staticmethod
+    def _merge(
+        df_file: Optional[pd.DataFrame],
+        df_redis: Optional[pd.DataFrame],
+    ) -> Optional[pd.DataFrame]:
 
-    global_signals = build_global_signals(mode, tf_features)
+        frames = [f for f in (df_file, df_redis) if f is not None]
 
-    logger.info(f"[REPORT READY] symbol={symbol}")
+        if not frames:
+            return None
 
-    return {
-        "symbol": symbol,
-        "mode": mode,
-        "timeframes": tf_features,
-        "global_signals": global_signals,
-    }
+        df = pd.concat(frames, ignore_index=True)
+        df["timestamp"] = df["timestamp"].astype(int)
+        df.drop_duplicates(subset="timestamp", keep="last", inplace=True)
+        df.sort_values("timestamp", inplace=True)
+        df.reset_index(drop=True, inplace=True)
+
+        return df
+
+    @staticmethod
+    def _fill_time_gaps(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
+
+        step = TIMEFRAME_SECONDS.get(timeframe)
+
+        if not step:
+            logger.warning(f"[GAP SKIP] Unknown timeframe {timeframe}")
+            return df
+
+        df = df.copy()
+        df["timestamp"] = df["timestamp"].astype(int)
+        df = df.set_index("timestamp")
+
+        full_index = range(df.index.min(), df.index.max() + step, step)
+        df = df.reindex(full_index)
+
+        for col in ["open", "high", "low", "close"]:
+            if col in df.columns:
+                df[col] = df[col].ffill()
+
+        if "volume" in df.columns:
+            df["volume"] = df["volume"].fillna(0.0)
+
+        return df.reset_index().rename(columns={"index": "timestamp"})
+
+    @staticmethod
+    def _validate_recency(
+        df: pd.DataFrame,
+        max_delay_seconds: int = 120,
+    ) -> Optional[pd.DataFrame]:
+        try:
+            latest_ts = int(df["timestamp"].iloc[-1])
+            current_ts = int(time.time())
+            delay = current_ts - latest_ts
+
+            logger.info(
+                f"[DF VALIDATION] latest={latest_ts} current={current_ts} delay={delay}s"
+            )
+
+            if delay > max_delay_seconds:
+                logger.warning(
+                    f"[DF STALE] delay={delay}s > allowed={max_delay_seconds}s"
+                )
+                return None
+
+            return df
+
+        except Exception as e:
+            logger.error(f"[DF VALIDATION ERROR] {e}", exc_info=True)
+            return None
 
 
 # ---------------------------------------------------------------------------
-# TIMEFRAME BUILDER
+# Worker functions — must be top-level for pickle (ProcessPoolExecutor)
 # ---------------------------------------------------------------------------
-def build_timeframe_features(df, mode: str) -> dict:
-    logger.debug("[TF FEATURE START]")
+
+def _worker(symbol: str, timeframe: str, fill_gaps: bool) -> Dict[str, Any]:
+    logger.info(f"[WORKER START] {symbol} | {timeframe} | pid={os.getpid()}")
 
     try:
-        trend = get_trend(df)
-        rsi   = get_rsi_features(df)
-        macd  = get_macd_features(df)
-        atr   = get_atr_features(df)
+        loader = CoinsDataLoader(_process_redis)   
+        df = loader.process_symbol(symbol, timeframe, fill_gaps)
 
-        score = compute_score(trend, rsi, macd, atr)
+        if df is None:
+            return {
+                "status": "skipped",
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "rows": 0,
+                "df": None,
+            }
 
-        tf_features = {
-            "trend": trend,
-            "rsi":   rsi,
-            "macd":  macd,
-            "atr":   atr,
-        }
-
-        result = {
-            **tf_features,
-            "sr_zones":     get_sr_zones(df),
-            "order_blocks": detect_order_blocks(df),
-            "price_action": enrich_price_action(df),
-            "fake_signal":  detect_fake_signal(tf_features),
-            "score":        score,
-        }
-
-        logger.debug("[TF FEATURE SUCCESS]")
-        return result
-
-    except Exception as e:
-        logger.error(f"[TF FEATURE ERROR] {e}", exc_info=True)
-        raise
-
-
-# ---------------------------------------------------------------------------
-# GLOBAL SIGNALS
-# ---------------------------------------------------------------------------
-def build_global_signals(mode: str, tf_data: dict) -> dict:
-    logger.info("[GLOBAL SIGNALS BUILD]")
-
-    if not tf_data:
-        logger.warning("[GLOBAL SIGNALS EMPTY INPUT]")
         return {
-            "volume_spike":       False,
-            "volatility_regime":  "unknown",
-            "recent_breakout":    False,
-            "trend_alignment":    "none",
-            "confidence_score":   0.0,
-            "bullish_tfs":        0,
-            "bearish_tfs":        0,
+            "status": "success",
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "rows": len(df),    
+            "df": df,
         }
-
-    try:
-        confluence = compute_confluence(mode, tf_data)
-
-        result = {
-            "volume_spike":      False,
-            "volatility_regime": "moderate",
-            "recent_breakout":   False,
-            "trend_alignment":   confluence["alignment"],
-            "confidence_score":  confluence["score"],
-            "bullish_tfs":       confluence["bullish_tfs"],
-            "bearish_tfs":       confluence["bearish_tfs"],
-        }
-
-        logger.info("[GLOBAL SIGNALS SUCCESS]")
-        return result
 
     except Exception as e:
-        logger.error(f"[GLOBAL SIGNAL ERROR] {e}", exc_info=True)
-        raise
+        logger.error(f"[WORKER ERROR] {symbol} | {timeframe} | {e}", exc_info=True)
+        return {
+            "status": "error",
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "rows": 0,
+            "df": None,
+            "error": str(e),
+        }
+
+
+def _worker_unpack(args):
+    return _worker(*args)
+
+
+
+def process_symbol_multi_timeframe(
+    symbol: str,
+    timeframes: List[str],
+    fill_gaps: bool = True,
+    max_workers: Optional[int] = None,
+) -> List[Dict[str, Any]]:
+
+    logger.info(f"[MULTI TF START] {symbol} | {timeframes}")
+
+    if not timeframes:
+        return []
+
+    args = [(symbol, tf, fill_gaps) for tf in timeframes]
+
+    with ProcessPoolExecutor(
+        max_workers=max_workers,
+        initializer=_init_worker,   
+    ) as executor:
+        results = list(executor.map(_worker_unpack, args))
+
+    logger.info(f"[MULTI TF DONE] {symbol} | results={len(results)}")
+    return results

@@ -1,25 +1,12 @@
-import asyncio
-from src.core.redis import get_redis_client
-from src.helpers.data_loader import CoinsDataLoader, process_symbol_multi_timeframe
-from src.constants import MODE_TIMEFRAMES
-from src.services.analysis import Mode, run_analysis
 
+from src.helpers.data_loader import process_symbol_multi_timeframe
+from src.core.redis import redis_client
 
+def test_raw_data_collection():
+    redis_client.ping()
+    symbol = "BTCUSDT"
+    timeframes = ["1m", "5m", "15m"]
+    raw_data = process_symbol_multi_timeframe(symbol, timeframes, fill_gaps=False)
+    print(raw_data)
 
-
-
-
-async def test_stimulator():
-    coin = "BTCUSDT"
-    mode = Mode.SCALPER
-    mode_timeframes = MODE_TIMEFRAMES[mode.value]
-
-    raw_data  = process_symbol_multi_timeframe(
-        symbol=coin, timeframes=mode_timeframes
-    )
-    print(f"Raw data for {coin} in {mode.value} mode:")
-
-
-
-asyncio.run(test_stimulator())
-
+test_raw_data_collection()

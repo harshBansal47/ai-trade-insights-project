@@ -49,7 +49,6 @@ class Task(SQLModel, table=True):
     # State
     status: TaskStatus = Field(
         default=TaskStatus.PENDING,
-        index=True,
         sa_column=Column(SAEnum(TaskStatus, name="task_status_enum"))
     )
     error: Optional[str] = Field(default=None)

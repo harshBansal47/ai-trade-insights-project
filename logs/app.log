@@ -15,3 +15,88 @@ Trying to import the above resulted in these errors:
 2026-04-03 12:47:52 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1774960410 current=1775200672 delay=240262s
 2026-04-03 12:47:52 | WARNING | src.helpers.data_loader | [DF STALE] delay=240262s > allowed=90000s
 2026-04-03 12:48:29 | WARNING | src.helpers.data_loader | [NO DATA] BTCUSDT | 15s
+2026-04-12 04:35:13 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 1h
+2026-04-12 04:35:22 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 1h
+2026-04-12 04:35:23 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775926800 current=1775948723 delay=21923s
+2026-04-12 04:35:23 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 1h | rows=10000
+2026-04-12 04:36:18 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 1h
+2026-04-12 04:36:18 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 1h
+2026-04-12 04:36:18 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775926800 current=1775948778 delay=21978s
+2026-04-12 04:36:18 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 1h | rows=10000
+2026-04-12 04:51:09 | INFO | src.helpers.data_loader | [MULTI TF START] BTCUSDT | ['15s', '30s', '1m', '3m', '5m', '15m', '30m', '1h']
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 15s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 15s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949660 current=1775949741 delay=81s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949720 current=1775949741 delay=21s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 15s | rows=92
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 30s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 30s
+2026-04-12 04:52:21 | ERROR | src.helpers.data_loader | [REDIS ERROR] BTCUSDT:30s | Event loop is closed
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949630 current=1775949741 delay=111s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 30s | rows=44
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 1m
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 1m
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949600 current=1775949741 delay=141s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949660 current=1775949741 delay=81s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 1m | rows=10355
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 3m
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 3m
+2026-04-12 04:52:21 | ERROR | src.helpers.data_loader | [REDIS ERROR] BTCUSDT:3m | Event loop is closed
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949480 current=1775949741 delay=261s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 3m | rows=10117
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 5m
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 5m
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949300 current=1775949741 delay=441s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949300 current=1775949741 delay=441s
+2026-04-12 04:52:21 | WARNING | src.helpers.data_loader | [DF STALE] delay=441s > allowed=120s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 5m | rows=10069
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 15m
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 15m
+2026-04-12 04:52:21 | ERROR | src.helpers.data_loader | [REDIS ERROR] BTCUSDT:15m | Event loop is closed
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775948400 current=1775949741 delay=1341s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 15m | rows=10022
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 30m
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 30m
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775946600 current=1775949741 delay=3141s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775946600 current=1775949741 delay=3141s
+2026-04-12 04:52:21 | WARNING | src.helpers.data_loader | [DF STALE] delay=3141s > allowed=120s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 30m | rows=10010
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 1h
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 1h
+2026-04-12 04:52:21 | ERROR | src.helpers.data_loader | [REDIS ERROR] BTCUSDT:1h | Event loop is closed
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775926800 current=1775949741 delay=22941s
+2026-04-12 04:52:21 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 1h | rows=10000
+2026-04-12 04:52:27 | INFO | src.helpers.data_loader | [MULTI TF DONE] BTCUSDT
+2026-04-12 18:20:06 | INFO | src.helpers.data_loader | [MULTI TF START] BTCUSDT | ['1m', '5m', '15m']
+2026-04-12 18:21:20 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 1m
+2026-04-12 18:21:21 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 5m
+2026-04-12 18:21:21 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 15m
+2026-04-12 18:21:25 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 1m
+2026-04-12 18:21:25 | ERROR | src.helpers.data_loader | [REDIS ERROR] BTCUSDT:1m | Task <Task pending name='Task-2' coro=<_worker() running at /home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/helpers/data_loader.py:198> cb=[_run_until_complete_cb() at /usr/local/lib/python3.13/asyncio/base_events.py:182]> got Future <Future pending> attached to a different loop
+2026-04-12 18:21:25 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949720 current=1775998285 delay=48565s
+2026-04-12 18:21:25 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 1m | rows=10000
+2026-04-12 18:21:29 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 5m
+2026-04-12 18:21:29 | ERROR | src.helpers.data_loader | [REDIS ERROR] BTCUSDT:5m | Task <Task pending name='Task-2' coro=<_worker() running at /home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/helpers/data_loader.py:198> cb=[_run_until_complete_cb() at /usr/local/lib/python3.13/asyncio/base_events.py:182]> got Future <Future pending> attached to a different loop
+2026-04-12 18:21:29 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949300 current=1775998289 delay=48989s
+2026-04-12 18:21:29 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 5m | rows=10000
+2026-04-12 18:21:32 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 15m
+2026-04-12 18:21:33 | ERROR | src.helpers.data_loader | [REDIS ERROR] BTCUSDT:15m | Task <Task pending name='Task-2' coro=<_worker() running at /home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/helpers/data_loader.py:198> cb=[_run_until_complete_cb() at /usr/local/lib/python3.13/asyncio/base_events.py:182]> got Future <Future pending> attached to a different loop
+2026-04-12 18:21:33 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775948400 current=1775998293 delay=49893s
+2026-04-12 18:21:33 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 15m | rows=10000
+2026-04-12 18:21:34 | INFO | src.helpers.data_loader | [MULTI TF DONE] BTCUSDT
+2026-04-12 19:09:31 | INFO | src.helpers.data_loader | [MULTI TF START] BTCUSDT | ['1m', '5m', '15m']
+2026-04-12 19:09:32 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 1m
+2026-04-12 19:09:32 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 1m
+2026-04-12 19:09:32 | ERROR | src.helpers.data_loader | [REDIS ERROR] BTCUSDT:1m | Task <Task pending name='Task-2' coro=<_worker() running at /home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/helpers/data_loader.py:198> cb=[_run_until_complete_cb() at /usr/local/lib/python3.13/asyncio/base_events.py:182]> got Future <Future pending> attached to a different loop
+2026-04-12 19:09:32 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949720 current=1776001172 delay=51452s
+2026-04-12 19:09:32 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 1m | rows=10000
+2026-04-12 19:09:32 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 5m
+2026-04-12 19:09:32 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 5m
+2026-04-12 19:09:32 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949300 current=1776001172 delay=51872s
+2026-04-12 19:09:32 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 5m | rows=10000
+2026-04-12 19:09:32 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 15m
+2026-04-12 19:09:32 | INFO | src.helpers.data_loader | [PROCESS] BTCUSDT | 15m
+2026-04-12 19:09:32 | ERROR | src.helpers.data_loader | [REDIS ERROR] BTCUSDT:15m | Event loop is closed
+2026-04-12 19:09:32 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775948400 current=1776001172 delay=52772s
+2026-04-12 19:09:32 | INFO | src.helpers.data_loader | [SUCCESS] BTCUSDT | 15m | rows=10000
+2026-04-12 19:09:39 | INFO | src.helpers.data_loader | [MULTI TF DONE] BTCUSDT
