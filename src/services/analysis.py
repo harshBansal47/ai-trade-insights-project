@@ -1,12 +1,15 @@
 from enum import Enum
 from typing import Optional
 
+from agentic_workflow.chain import get_signal_chain
+from src.helpers.indicators import add_indicators
 from src.core.celery import celery_app as celery
 from src.core.logger import setup_logger
-from src.core.database import SyncSessionLocal  # you need a sync session for Celery
+from src.core.database import get_sync_db
 
 from src.helpers.indicator_features import (
     get_atr_features,
+    get_bollinger_features,        # ← added
     get_macd_features,
     get_rsi_features,
     get_trend,
@@ -32,13 +35,13 @@ logger = setup_logger(__name__)
 # MODE ENUM
 # ---------------------------------------------------------------------------
 class Mode(Enum):
-    SCALPER = "SCALPER"
-    SWING = "SWING"
+    SCALPER  = "SCALPER"
+    SWING    = "SWING"
     POSITION = "POSITION"
 
 
 # ---------------------------------------------------------------------------
-# CELERY TASK  — signature now matches exactly what the router sends
+# CELERY TASK
 # ---------------------------------------------------------------------------
 @celery.task(
     bind=True,
@@ -61,10 +64,9 @@ def run_analysis(
         f"symbol={coin_symbol} mode={mode_value}"
     )
 
-    # ── Mark task as PROCESSING ──────────────────────────────────────────
     _update_task(task_id, status=TaskStatus.PROCESSING)
 
-    # ── Load market data ─────────────────────────────────────────────────
+    # ── Load market data ────────────────────────────────────────────────
     try:
         mode_timeframes = MODE_TIMEFRAMES[mode_value]
 
@@ -72,9 +74,7 @@ def run_analysis(
             symbol=coin_symbol, timeframes=mode_timeframes
         )
 
-        logger.info(
-            f"[DATA LOADED] symbol={coin_symbol} tf_count={len(raw_data)}"
-        )
+        logger.info(f"[DATA LOADED] symbol={coin_symbol} tf_count={len(raw_data)}")
 
     except Exception as exc:
         logger.error(
@@ -84,7 +84,7 @@ def run_analysis(
         _update_task(task_id, status=TaskStatus.FAILED, error=str(exc))
         raise self.retry(exc=exc)
 
-    # ── Build report ─────────────────────────────────────────────────────
+    # ── Build report ────────────────────────────────────────────────────
     try:
         report = assemble_report(
             symbol=coin_symbol,
@@ -101,15 +101,9 @@ def run_analysis(
             )
             return None
 
-        # ── Save result and mark COMPLETED ────────────────────────────
-        _update_task(
-            task_id,
-            status=TaskStatus.COMPLETED,
-            result=report,
-        )
-
+        _update_task(task_id, status=TaskStatus.COMPLETED, result=report)
         logger.info(f"[TASK SUCCESS] task_id={task_id} symbol={coin_symbol}")
-        return report
+       
 
     except Exception as exc:
         logger.error(
@@ -118,10 +112,28 @@ def run_analysis(
         )
         _update_task(task_id, status=TaskStatus.FAILED, error=str(exc))
         raise self.retry(exc=exc)
+    
+    try:
+        signal = get_signal_chain().run_safe(report)
+
+        if signal is not None:
+            report["ai_signal"] = signal.model_dump()
+            logger.info(
+                f"[AI SIGNAL] {coin_symbol} → "
+                f"{signal.signal} | confidence={signal.confidence} | "
+                f"risk={signal.risk_level}"
+            )
+        else:
+            logger.warning(f"[AI SIGNAL SKIPPED] {coin_symbol}")
+
+    except Exception as exc:
+        logger.error(f"[AI SIGNAL ERROR] {coin_symbol} | {exc}", exc_info=True)
+        
+    
 
 
 # ---------------------------------------------------------------------------
-# DB HELPER — sync because Celery workers are synchronous
+# DB HELPER
 # ---------------------------------------------------------------------------
 def _update_task(
     task_id: str,
@@ -129,11 +141,10 @@ def _update_task(
     result: Optional[dict] = None,
     error: Optional[str] = None,
 ) -> None:
-    """Open a short-lived sync session, update the Task row, and close."""
     from datetime import datetime, timezone
 
     try:
-        with SyncSessionLocal() as db:
+        with get_sync_db() as db:
             task = db.get(Task, task_id)
 
             if not task:
@@ -200,9 +211,9 @@ def assemble_report(
     logger.info(f"[REPORT READY] symbol={symbol}")
 
     return {
-        "symbol": symbol,
-        "mode": mode,
-        "timeframes": tf_features,
+        "symbol":         symbol,
+        "mode":           mode,
+        "timeframes":     tf_features,
         "global_signals": global_signals,
     }
 
@@ -212,20 +223,23 @@ def assemble_report(
 # ---------------------------------------------------------------------------
 def build_timeframe_features(df, mode: str) -> dict:
     logger.debug("[TF FEATURE START]")
+    df = add_indicators(df)
 
     try:
         trend = get_trend(df)
         rsi   = get_rsi_features(df)
         macd  = get_macd_features(df)
         atr   = get_atr_features(df)
+        bb    = get_bollinger_features(df)     # ← added
 
-        score = compute_score(trend, rsi, macd, atr)
+        score = compute_score(trend, rsi, macd, atr ,bb)
 
         tf_features = {
             "trend": trend,
             "rsi":   rsi,
             "macd":  macd,
             "atr":   atr,
+            "bb":    bb,                       # ← added
         }
 
         result = {
@@ -254,13 +268,13 @@ def build_global_signals(mode: str, tf_data: dict) -> dict:
     if not tf_data:
         logger.warning("[GLOBAL SIGNALS EMPTY INPUT]")
         return {
-            "volume_spike":       False,
-            "volatility_regime":  "unknown",
-            "recent_breakout":    False,
-            "trend_alignment":    "none",
-            "confidence_score":   0.0,
-            "bullish_tfs":        0,
-            "bearish_tfs":        0,
+            "volume_spike":      False,
+            "volatility_regime": "unknown",
+            "recent_breakout":   False,
+            "trend_alignment":   "none",
+            "confidence_score":  0.0,
+            "bullish_tfs":       0,
+            "bearish_tfs":       0,
         }
 
     try:

@@ -26,49 +26,61 @@ def detect_fake_signal(tf_features: dict) -> dict:
     Parameters
     ----------
     tf_features : dict
-        Output of build_timeframe_features().
+        Output of build_timeframe_features(). Must include 'bb' key.
 
     Returns
     -------
     dict with keys:
-        is_fake       : bool  — True if >= 2 directional conflicts exist
-        conflicts     : list  — specific conflict labels
-        low_volatility: bool  — True if ATR is contracting (separate flag,
-                                not counted as a directional conflict)
+        is_fake        : bool  — True if >= 2 directional conflicts exist,
+                                 or >= 1 conflict + low_volatility
+        conflicts      : list  — specific conflict labels
+        low_volatility : bool  — ATR contracting (not a directional conflict)
     """
-    trend      = tf_features["trend"]["direction"]
-    rsi_zone   = tf_features["rsi"]["zone"]
-    macd_signal = tf_features["macd"]["signal"]
-    atr_state  = tf_features["atr"]["state"]
+    trend        = tf_features["trend"]["direction"]
+    rsi_zone     = tf_features["rsi"]["zone"]
+    macd_signal  = tf_features["macd"]["signal"]
+    atr_state    = tf_features["atr"]["state"]
+    bb_position  = tf_features["bb"]["position"]
+    bb_squeeze   = tf_features["bb"]["squeeze"]
 
     conflicts: list[str] = []
 
-    # RSI vs Trend conflicts
+    # RSI vs Trend
     if trend == "UPTREND" and rsi_zone == "overbought":
         conflicts.append("rsi_overbought_in_uptrend")
 
     if trend == "DOWNTREND" and rsi_zone == "oversold":
         conflicts.append("rsi_oversold_in_downtrend")
 
-    # MACD conflicts
+    # MACD vs Trend
     if trend == "UPTREND" and "bearish" in macd_signal:
         conflicts.append("macd_bearish_against_trend")
 
     if trend == "DOWNTREND" and "bullish" in macd_signal:
         conflicts.append("macd_bullish_against_trend")
 
-    # Low volatility is a separate risk flag — NOT a directional conflict.
-    # Mixing it into `conflicts` caused a single real conflict + low ATR
-    # to incorrectly flag a signal as fake.
+    # BB vs Trend — price outside band against trend direction is suspect
+    # e.g. price above upper band in a DOWNTREND = overextended fake bounce
+    if trend == "DOWNTREND" and bb_position == "above_upper":
+        conflicts.append("bb_above_upper_in_downtrend")
+
+    if trend == "UPTREND" and bb_position == "below_lower":
+        conflicts.append("bb_below_lower_in_uptrend")
+
+    # BB squeeze — a signal fired during a squeeze is unreliable because
+    # bands are compressed and direction is not yet confirmed
+    if bb_squeeze:
+        conflicts.append("bb_squeeze_signal")
+
+    # ATR contraction is a separate risk flag — not a directional conflict
     is_low_vol = atr_state == "contracting"
 
-    # A signal is fake if there are >= 2 directional conflicts,
-    # OR >= 1 directional conflict combined with low volatility.
+    # Fake if >= 2 directional conflicts, or >= 1 conflict + low volatility
     is_fake = len(conflicts) >= 2 or (len(conflicts) >= 1 and is_low_vol)
 
     return {
-        "is_fake": is_fake,
-        "conflicts": conflicts,
+        "is_fake":       is_fake,
+        "conflicts":     conflicts,
         "low_volatility": is_low_vol,
     }
 
@@ -85,15 +97,6 @@ def find_swing_points(
 
     Note: The first and last `window` rows are excluded by design — there
     are not enough neighbours to confirm a swing at the boundaries.
-
-    Parameters
-    ----------
-    df     : DataFrame with 'high' and 'low' columns.
-    window : Number of candles on each side to compare.
-
-    Returns
-    -------
-    (highs, lows) — lists of price levels.
     """
     _validate_df(df, ["high", "low"], "find_swing_points")
 
@@ -120,26 +123,13 @@ def cluster_levels(levels: list[float], tolerance: float = 0.005) -> list[dict]:
     """
     Group nearby price levels into clusters.
 
-    Levels are sorted first to ensure order-independent assignment —
-    unsorted input caused a level to attach to the wrong cluster when
-    an earlier level shifted the cluster mean away from it.
-
-    Parameters
-    ----------
-    levels    : List of raw price levels (highs or lows).
-    tolerance : Max relative distance to merge into an existing cluster.
-
-    Returns
-    -------
-    List of cluster dicts: {"mean": float, "values": list[float]}
+    Levels are sorted first to ensure order-independent assignment.
     """
     if not levels:
         return []
 
     clusters: list[dict] = []
 
-    # Sort so nearby levels are evaluated adjacently — prevents order
-    # dependency in cluster assignment.
     for level in sorted(levels):
         placed = False
         for cluster in clusters:
@@ -161,16 +151,6 @@ def cluster_levels(levels: list[float], tolerance: float = 0.005) -> list[dict]:
 def get_sr_zones(df: pd.DataFrame, top_n: int = 3) -> dict:
     """
     Compute the top N support and resistance zones by cluster strength.
-
-    Parameters
-    ----------
-    df    : OHLCV DataFrame.
-    top_n : Number of strongest zones to return per side.
-
-    Returns
-    -------
-    dict with keys 'resistance' and 'support', each a list of
-    {"level": float, "strength": int} sorted by descending strength.
     """
     _validate_df(df, ["high", "low"], "get_sr_zones")
 
@@ -198,28 +178,14 @@ def get_sr_zones(df: pd.DataFrame, top_n: int = 3) -> dict:
 def compute_confluence(mode: str, tf_data: dict) -> dict:
     """
     Compute a weighted confluence score across multiple timeframes.
-
-    Parameters
-    ----------
-    mode    : Trading mode key used to look up TF_WEIGHTS (e.g. "scalp").
-    tf_data : Dict of {timeframe: {"score": float, ...}}.
-
-    Returns
-    -------
-    dict with keys: score, alignment, bullish_tfs, bearish_tfs.
-
-    Notes
-    -----
-    - score is normalised by total_weight to keep it in [-1, 1].
-    - alignment requires >= 2 timeframes to be meaningful.
     """
     if not tf_data:
         return {"score": 0.0, "alignment": "none", "bullish_tfs": 0, "bearish_tfs": 0}
 
     weights = TF_WEIGHTS.get(mode, {})
 
-    score        = 0.0
-    total_weight = 0.0
+    score         = 0.0
+    total_weight  = 0.0
     bullish_count = 0
     bearish_count = 0
 
@@ -228,20 +194,17 @@ def compute_confluence(mode: str, tf_data: dict) -> dict:
         total_weight += weight
 
         tf_score = data["score"]
-        score += tf_score * weight
+        score   += tf_score * weight
 
         if tf_score > 0:
             bullish_count += 1
         elif tf_score < 0:
             bearish_count += 1
 
-    # Normalise — avoids inflated scores when weights don't sum to 1.
-    # Guard against division by zero when mode is unknown / weights missing.
     normalised_score = round(score / total_weight, 3) if total_weight > 0 else 0.0
 
     n = len(tf_data)
     if n < 2:
-        # A single timeframe cannot be "aligned" — it's just one reading.
         alignment = "single"
     elif bullish_count == n or bearish_count == n:
         alignment = "aligned"
@@ -251,8 +214,8 @@ def compute_confluence(mode: str, tf_data: dict) -> dict:
         alignment = "conflicting"
 
     return {
-        "score": normalised_score,
-        "alignment": alignment,
+        "score":       normalised_score,
+        "alignment":   alignment,
         "bullish_tfs": bullish_count,
         "bearish_tfs": bearish_count,
     }
@@ -271,21 +234,7 @@ def detect_order_blocks(
     Identify bullish and bearish order blocks.
 
     An order block is the candle immediately before a strong impulsive move.
-    The previous implementation returned only `blocks[-3:]` across both
-    types, meaning all 3 results could be the same type.  This version
-    returns the last `top_n` blocks per type independently.
-
-    Parameters
-    ----------
-    df        : OHLCV DataFrame.
-    threshold : Move must exceed `threshold × avg_move` to qualify.
-    lookback  : Min index offset from start to begin evaluating.
-    top_n     : Max order blocks to return per type.
-
-    Returns
-    -------
-    dict with keys 'bullish' and 'bearish', each a list of
-    {"type", "high", "low"} dicts (most recent last).
+    Returns the last `top_n` blocks per type independently.
     """
     _validate_df(df, ["open", "high", "low", "close"], "detect_order_blocks")
 
@@ -304,15 +253,12 @@ def detect_order_blocks(
         if move > threshold * avg_move:
             candle = df.iloc[i]
 
-            # Bullish OB: bearish candle immediately before a strong up move
             if candle["close"] < candle["open"]:
                 bullish_blocks.append({
                     "type": "bullish",
                     "high": float(candle["high"]),
                     "low":  float(candle["low"]),
                 })
-
-            # Bearish OB: bullish candle immediately before a strong down move
             elif candle["close"] > candle["open"]:
                 bearish_blocks.append({
                     "type": "bearish",
@@ -334,46 +280,74 @@ def compute_score(
     rsi:   dict,
     macd:  dict,
     atr:   dict,
+    bb:    dict,
 ) -> float:
     """
     Compute a single directional score in [-1, 1].
 
     Weights
     -------
-    Trend   : ±0.30
-    RSI     : ±0.20
-    MACD    : ±0.30
-    ATR     : ±0.20  (expanding = conviction boost, contracting = penalty)
-    Total   :  1.00
+    Trend  : ±0.25
+    RSI    : ±0.15
+    MACD   : ±0.25
+    ATR    : ±0.15  (expanding = conviction, contracting = caution)
+    BB     : ±0.20  (percent_b position + squeeze penalty)
+    Total  :  1.00
 
-    The ATR component is now symmetric — previously expanding gave +0.2
-    but contracting gave 0, making the score asymmetric.
+    BB Scoring Logic
+    ----------------
+    percent_b > 0.8  → bullish  (+0.10)
+    percent_b < 0.2  → bearish  (-0.10)
+    above_upper      → extra bullish momentum  (+0.10)
+    below_lower      → extra bearish momentum  (-0.10)
+    squeeze=True     → uncertainty penalty     (-0.10, capped, applied after)
     """
     score = 0.0
 
-    # Trend (±0.30)
+    # Trend (±0.25)
     if trend["direction"] == "UPTREND":
-        score += 0.30
+        score += 0.25
     elif trend["direction"] == "DOWNTREND":
-        score -= 0.30
+        score -= 0.25
 
-    # RSI (±0.20)
+    # RSI (±0.15)
     if rsi["zone"] == "bullish":
-        score += 0.20
+        score += 0.15
     elif rsi["zone"] == "bearish":
-        score -= 0.20
+        score -= 0.15
 
-    # MACD (±0.30)
+    # MACD (±0.25)
     if "bullish" in macd["signal"]:
-        score += 0.30
+        score += 0.25
     elif "bearish" in macd["signal"]:
-        score -= 0.30
+        score -= 0.25
 
-    # ATR (±0.20) — symmetric: expansion = conviction, contraction = caution
+    # ATR (±0.15) — symmetric
     if atr["state"] == "expanding":
-        score += 0.20
+        score += 0.15
     elif atr["state"] == "contracting":
-        score -= 0.20
+        score -= 0.15
+
+    # BB (±0.20)
+    percent_b   = bb["percent_b"]
+    bb_position = bb["position"]
+    bb_squeeze  = bb["squeeze"]
+
+    # percent_b: directional lean based on where price sits in the bands
+    if percent_b > 0.8:
+        score += 0.10
+    elif percent_b < 0.2:
+        score -= 0.10
+
+    # position: price outside bands = momentum confirmation
+    if bb_position == "above_upper":
+        score += 0.10
+    elif bb_position == "below_lower":
+        score -= 0.10
+
+    # squeeze: bands compressed = direction not confirmed, reduce conviction
+    if bb_squeeze:
+        score -= 0.10
 
     return round(max(min(score, 1.0), -1.0), 2)
 
@@ -385,20 +359,10 @@ def detect_liquidity_sweep(df: pd.DataFrame, lookback: int = 20) -> dict:
     """
     Detect a liquidity sweep (stop-hunt) on the latest candle.
 
-    A sweep above the recent high that closes back below it signals a
-    bearish reversal.  A sweep below the recent low that closes back
-    above it signals a bullish reversal.
-
-    Uses iloc[-2] for the rolling window reference to avoid look-ahead
-    bias — the current candle's high/low must not influence the level.
-
-    Returns
-    -------
-    dict with keys: sweep (bool), direction (str|None), level (float|None).
+    Uses iloc[-2] for rolling reference to avoid look-ahead bias.
     """
     _validate_df(df, ["high", "low", "close"], "detect_liquidity_sweep")
 
-    # Avoid look-ahead: reference level is calculated excluding the last bar
     recent_high = df["high"].rolling(lookback).max().iloc[-2]
     recent_low  = df["low"].rolling(lookback).min().iloc[-2]
 
@@ -406,29 +370,21 @@ def detect_liquidity_sweep(df: pd.DataFrame, lookback: int = 20) -> dict:
     low   = df["low"].iloc[-1]
     close = df["close"].iloc[-1]
 
-    sweep    = False
-    direction: Optional[str]   = None
-    level:    Optional[float]  = None
+    sweep     = False
+    direction: Optional[str]  = None
+    level:    Optional[float] = None
 
-    # Wick above recent high but closes back below → bearish reversal
     if high > recent_high and close < recent_high:
         sweep     = True
         direction = "bearish_reversal"
         level     = float(recent_high)
 
-    # Wick below recent low but closes back above → bullish reversal
     elif low < recent_low and close > recent_low:
         sweep     = True
         direction = "bullish_reversal"
         level     = float(recent_low)
 
-    return {
-        "sweep":     sweep,
-        "direction": direction,
-        # level is None when no sweep occurred — previously always returned
-        # a price even when sweep=False (str(None) bug).
-        "level":     level,
-    }
+    return {"sweep": sweep, "direction": direction, "level": level}
 
 
 # ---------------------------------------------------------------------------
@@ -438,22 +394,11 @@ def detect_breakout(df: pd.DataFrame, lookback: int = 50) -> dict:
     """
     Detect a confirmed price breakout on the latest candle.
 
-    Strength is based on volume vs its 20-bar average.
     Uses iloc[-2] for rolling reference to avoid look-ahead bias.
-
-    Returns
-    -------
-    dict with keys: breakout (bool), direction (str|None),
-                    level (float|None), strength (str|None).
-
-    Notes
-    -----
-    level and strength are None when breakout=False — previously they
-    always returned a stale price level and "weak" even with no breakout.
+    Strength is based on volume vs its 20-bar average.
     """
     _validate_df(df, ["high", "low", "close", "volume"], "detect_breakout")
 
-    # Avoid look-ahead bias
     recent_high = df["high"].rolling(lookback).max().iloc[-2]
     recent_low  = df["low"].rolling(lookback).min().iloc[-2]
 
@@ -467,19 +412,16 @@ def detect_breakout(df: pd.DataFrame, lookback: int = 50) -> dict:
     level:    Optional[float] = None
     strength: Optional[str]   = None
 
-    # Bullish breakout: previous close was inside range, now above
     if prev_close <= recent_high and close > recent_high:
         breakout  = True
         direction = "bullish"
         level     = float(recent_high)
 
-    # Bearish breakout: previous close was inside range, now below
     elif prev_close >= recent_low and close < recent_low:
         breakout  = True
         direction = "bearish"
         level     = float(recent_low)
 
-    # Strength is only meaningful when a breakout actually occurred
     if breakout:
         strength = "strong" if volume > 1.5 * avg_volume else "moderate"
 
@@ -487,9 +429,54 @@ def detect_breakout(df: pd.DataFrame, lookback: int = 50) -> dict:
         "breakout":  breakout,
         "direction": direction,
         "level":     level,
-        # strength=None (not "weak") when breakout=False — avoids misleading
-        # downstream consumers into thinking a non-event has a strength rating.
         "strength":  strength,
+    }
+
+
+# ---------------------------------------------------------------------------
+# BB Context  ← NEW
+# ---------------------------------------------------------------------------
+def detect_bb_context(df: pd.DataFrame) -> dict:
+    """
+    Enrich price action with Bollinger Band context on the latest candle.
+
+    Returns
+    -------
+    dict with keys:
+        band_touch   : str|None — "upper", "lower", or None
+        inside_bands : bool     — price is between upper and lower bands
+        squeeze      : bool     — bands are compressed vs their 20-bar mean width
+        percent_b    : float    — normalised position within the bands (0–1)
+    """
+    _validate_df(df, ["close", "bb_upper", "bb_lower", "bb_middle"], "detect_bb_context")
+
+    close  = df["close"].iloc[-1]
+    upper  = df["bb_upper"].iloc[-1]
+    lower  = df["bb_lower"].iloc[-1]
+
+    band_width = upper - lower
+    percent_b  = (close - lower) / band_width if band_width > 0 else 0.5
+
+    # Tolerance: within 0.1% of band is considered a touch
+    touch_tol  = band_width * 0.001
+    band_touch: Optional[str] = None
+
+    if close >= upper - touch_tol:
+        band_touch = "upper"
+    elif close <= lower + touch_tol:
+        band_touch = "lower"
+
+    inside_bands = lower < close < upper
+
+    all_widths = df["bb_upper"] - df["bb_lower"]
+    width_ma20 = all_widths.rolling(20).mean().iloc[-1]
+    squeeze    = bool(band_width < width_ma20) if pd.notna(width_ma20) and width_ma20 > 0 else False
+
+    return {
+        "band_touch":   band_touch,
+        "inside_bands": inside_bands,
+        "squeeze":      squeeze,
+        "percent_b":    round(percent_b, 3),
     }
 
 
@@ -500,4 +487,5 @@ def enrich_price_action(df: pd.DataFrame) -> dict:
     return {
         "breakout":        detect_breakout(df),
         "liquidity_sweep": detect_liquidity_sweep(df),
+        "bb_context":      detect_bb_context(df),    # ← added
     }

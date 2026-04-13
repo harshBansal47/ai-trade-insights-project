@@ -153,3 +153,246 @@ Trying to import the above resulted in these errors:
 2026-04-13 03:01:17 | WARNING | src.helpers.data_loader | [DF STALE] delay=81077s > allowed=120s
 2026-04-13 03:01:17 | WARNING | src.helpers.data_loader | [NO DATA] BTCUSDT | 15m
 2026-04-13 03:01:22 | INFO | src.helpers.data_loader | [MULTI TF DATA LOADING DONE] BTCUSDT
+2026-04-13 04:30:23 | INFO | src.helpers.data_loader | [MULTI TF START] BTCUSDT | ['1m', '5m', '15m']
+2026-04-13 04:30:30 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 1m | pid=14471
+2026-04-13 04:30:30 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 1m
+2026-04-13 04:30:34 | ERROR | src.helpers.data_loader | [REDIS ERROR] BTCUSDT:1m | 'NoneType' object has no attribute 'lrange'
+Traceback (most recent call last):
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/helpers/data_loader.py", line 115, in _load_from_redis
+    raw_items = self.redis_client.lrange(key, 0, -1)
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'lrange'
+2026-04-13 04:31:19 | INFO | src.helpers.data_loader | [MULTI TF START] BTCUSDT | ['1m', '5m', '15m']
+2026-04-13 04:31:19 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 1m | pid=14661
+2026-04-13 04:34:08 | INFO | src.helpers.data_loader | [WORKER INIT] Redis ready | pid=14815
+2026-04-13 04:34:16 | INFO | src.helpers.data_loader | [MULTI TF START] BTCUSDT | ['1m', '5m', '15m']
+2026-04-13 04:34:21 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 1m | pid=14815
+2026-04-13 04:34:26 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 1m
+2026-04-13 04:35:09 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 5m | pid=14815
+2026-04-13 04:35:11 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 5m
+2026-04-13 04:35:15 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949300 current=1776035115 delay=85815s
+2026-04-13 04:35:15 | WARNING | src.helpers.data_loader | [DF STALE] delay=85815s > allowed=120s
+2026-04-13 04:36:19 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 15m | pid=14815
+2026-04-13 04:36:21 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 15m
+2026-04-13 04:36:28 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775948400 current=1776035188 delay=86788s
+2026-04-13 04:36:28 | WARNING | src.helpers.data_loader | [DF STALE] delay=86788s > allowed=120s
+2026-04-13 04:36:44 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775948400 current=1776035204 delay=86804s
+2026-04-13 04:36:44 | WARNING | src.helpers.data_loader | [DF STALE] delay=86804s > allowed=120s
+2026-04-13 04:37:22 | INFO | src.helpers.data_loader | [MULTI TF DONE] BTCUSDT | results=3
+2026-04-13 04:37:40 | INFO | src.services.analysis | [ASSEMBLE REPORT] symbol=BTCUSDT
+2026-04-13 04:38:05 | INFO | src.services.analysis | [BUILD TF FEATURES] BTCUSDT | 1m
+2026-04-13 04:38:20 | ERROR | src.services.analysis | [TF FEATURE ERROR] 'ema20'
+Traceback (most recent call last):
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/indexes/base.py", line 3641, in get_loc
+    return self._engine.get_loc(casted_key)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "pandas/_libs/index.pyx", line 168, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/index.pyx", line 197, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7668, in pandas._libs.hashtable.PyObjectHashTable.get_item
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7676, in pandas._libs.hashtable.PyObjectHashTable.get_item
+KeyError: 'ema20'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/services/analysis.py", line 217, in build_timeframe_features
+    trend = get_trend(df)
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/helpers/indicator_features.py", line 5, in get_trend
+    ema20 = df["ema20"].iloc[-1]
+            ~~^^^^^^^^^
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/frame.py", line 4378, in __getitem__
+    indexer = self.columns.get_loc(key)
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/indexes/base.py", line 3648, in get_loc
+    raise KeyError(key) from err
+KeyError: 'ema20'
+2026-04-13 04:38:20 | ERROR | src.services.analysis | [TF BUILD ERROR] BTCUSDT | 1m | 'ema20'
+Traceback (most recent call last):
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/indexes/base.py", line 3641, in get_loc
+    return self._engine.get_loc(casted_key)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "pandas/_libs/index.pyx", line 168, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/index.pyx", line 197, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7668, in pandas._libs.hashtable.PyObjectHashTable.get_item
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7676, in pandas._libs.hashtable.PyObjectHashTable.get_item
+KeyError: 'ema20'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/services/analysis.py", line 185, in assemble_report
+    tf_features[tf] = build_timeframe_features(result["df"], mode)
+                      ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/services/analysis.py", line 217, in build_timeframe_features
+    trend = get_trend(df)
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/helpers/indicator_features.py", line 5, in get_trend
+    ema20 = df["ema20"].iloc[-1]
+            ~~^^^^^^^^^
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/frame.py", line 4378, in __getitem__
+    indexer = self.columns.get_loc(key)
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/indexes/base.py", line 3648, in get_loc
+    raise KeyError(key) from err
+KeyError: 'ema20'
+2026-04-13 04:55:52 | INFO | src.helpers.data_loader | [WORKER INIT] Redis ready | pid=16078
+2026-04-13 04:55:52 | INFO | src.helpers.data_loader | [MULTI TF START] BTCUSDT | ['1m', '5m', '15m']
+2026-04-13 04:55:52 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 1m | pid=16078
+2026-04-13 04:55:52 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 1m
+2026-04-13 04:56:02 | INFO | src.helpers.data_loader | [WORKER INIT] Redis ready | pid=16342
+2026-04-13 04:56:02 | INFO | src.helpers.data_loader | [MULTI TF START] BTCUSDT | ['1m', '5m', '15m']
+2026-04-13 04:56:02 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 1m | pid=16342
+2026-04-13 04:56:02 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 1m
+2026-04-13 04:56:02 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949720 current=1776036362 delay=86642s
+2026-04-13 04:56:02 | WARNING | src.helpers.data_loader | [DF STALE] delay=86642s > allowed=120s
+2026-04-13 04:56:02 | WARNING | src.helpers.data_loader | [NO DATA] BTCUSDT | 1m
+2026-04-13 04:56:02 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 5m | pid=16342
+2026-04-13 04:56:02 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 5m
+2026-04-13 04:56:02 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949300 current=1776036362 delay=87062s
+2026-04-13 04:56:02 | WARNING | src.helpers.data_loader | [DF STALE] delay=87062s > allowed=120s
+2026-04-13 04:56:02 | WARNING | src.helpers.data_loader | [NO DATA] BTCUSDT | 5m
+2026-04-13 04:56:02 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 15m | pid=16342
+2026-04-13 04:56:02 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 15m
+2026-04-13 04:56:02 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775948400 current=1776036362 delay=87962s
+2026-04-13 04:56:02 | WARNING | src.helpers.data_loader | [DF STALE] delay=87962s > allowed=120s
+2026-04-13 04:56:02 | WARNING | src.helpers.data_loader | [NO DATA] BTCUSDT | 15m
+2026-04-13 04:56:02 | INFO | src.helpers.data_loader | [MULTI TF DONE] BTCUSDT | results=3
+2026-04-13 04:56:02 | INFO | src.services.analysis | [ASSEMBLE REPORT] symbol=BTCUSDT
+2026-04-13 04:56:02 | WARNING | src.services.analysis | [SKIP TF] BTCUSDT | 1m
+2026-04-13 04:56:02 | WARNING | src.services.analysis | [SKIP TF] BTCUSDT | 5m
+2026-04-13 04:56:02 | WARNING | src.services.analysis | [SKIP TF] BTCUSDT | 15m
+2026-04-13 04:56:02 | WARNING | src.services.analysis | [NO VALID TF FEATURES] symbol=BTCUSDT
+2026-04-13 04:56:32 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 5m | pid=16078
+2026-04-13 04:56:32 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 5m
+2026-04-13 04:56:32 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775949300 current=1776036392 delay=87092s
+2026-04-13 04:56:32 | WARNING | src.helpers.data_loader | [DF STALE] delay=87092s > allowed=120s
+2026-04-13 04:56:32 | WARNING | src.helpers.data_loader | [NO DATA] BTCUSDT | 5m
+2026-04-13 04:56:32 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 15m | pid=16078
+2026-04-13 04:56:32 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 15m
+2026-04-13 04:56:32 | INFO | src.helpers.data_loader | [DF VALIDATION] latest=1775948400 current=1776036392 delay=87992s
+2026-04-13 04:56:32 | WARNING | src.helpers.data_loader | [DF STALE] delay=87992s > allowed=120s
+2026-04-13 04:56:32 | WARNING | src.helpers.data_loader | [NO DATA] BTCUSDT | 15m
+2026-04-13 04:56:32 | INFO | src.helpers.data_loader | [MULTI TF DONE] BTCUSDT | results=3
+2026-04-13 04:56:32 | INFO | src.services.analysis | [ASSEMBLE REPORT] symbol=BTCUSDT
+2026-04-13 04:56:32 | INFO | src.services.analysis | [BUILD TF FEATURES] BTCUSDT | 1m
+2026-04-13 04:56:32 | ERROR | src.services.analysis | [TF FEATURE ERROR] 'ema20'
+Traceback (most recent call last):
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/indexes/base.py", line 3641, in get_loc
+    return self._engine.get_loc(casted_key)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "pandas/_libs/index.pyx", line 168, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/index.pyx", line 197, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7668, in pandas._libs.hashtable.PyObjectHashTable.get_item
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7676, in pandas._libs.hashtable.PyObjectHashTable.get_item
+KeyError: 'ema20'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/services/analysis.py", line 219, in build_timeframe_features
+    trend = get_trend(df)
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/helpers/indicator_features.py", line 5, in get_trend
+    ema20 = df["ema20"].iloc[-1]
+            ~~^^^^^^^^^
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/frame.py", line 4378, in __getitem__
+    indexer = self.columns.get_loc(key)
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/indexes/base.py", line 3648, in get_loc
+    raise KeyError(key) from err
+KeyError: 'ema20'
+2026-04-13 04:56:32 | ERROR | src.services.analysis | [TF BUILD ERROR] BTCUSDT | 1m | 'ema20'
+Traceback (most recent call last):
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/indexes/base.py", line 3641, in get_loc
+    return self._engine.get_loc(casted_key)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "pandas/_libs/index.pyx", line 168, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/index.pyx", line 197, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7668, in pandas._libs.hashtable.PyObjectHashTable.get_item
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7676, in pandas._libs.hashtable.PyObjectHashTable.get_item
+KeyError: 'ema20'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/services/analysis.py", line 186, in assemble_report
+    tf_features[tf] = build_timeframe_features(result["df"], mode)
+                      ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/services/analysis.py", line 219, in build_timeframe_features
+    trend = get_trend(df)
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/helpers/indicator_features.py", line 5, in get_trend
+    ema20 = df["ema20"].iloc[-1]
+            ~~^^^^^^^^^
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/frame.py", line 4378, in __getitem__
+    indexer = self.columns.get_loc(key)
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/indexes/base.py", line 3648, in get_loc
+    raise KeyError(key) from err
+KeyError: 'ema20'
+2026-04-13 04:57:05 | INFO | src.helpers.data_loader | [WORKER INIT] Redis ready | pid=16527
+2026-04-13 04:57:05 | INFO | src.helpers.data_loader | [MULTI TF START] BTCUSDT | ['1m', '5m', '15m']
+2026-04-13 04:57:05 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 1m | pid=16527
+2026-04-13 04:57:05 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 1m
+2026-04-13 04:57:57 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 5m | pid=16527
+2026-04-13 04:57:57 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 5m
+2026-04-13 04:58:45 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 15m | pid=16527
+2026-04-13 04:58:45 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 15m
+2026-04-13 04:59:10 | INFO | src.helpers.data_loader | [MULTI TF DONE] BTCUSDT | results=3
+2026-04-13 04:59:10 | INFO | src.services.analysis | [ASSEMBLE REPORT] symbol=BTCUSDT
+2026-04-13 04:59:10 | INFO | src.services.analysis | [BUILD TF FEATURES] BTCUSDT | 1m
+2026-04-13 04:59:10 | ERROR | src.services.analysis | [TF FEATURE ERROR] 'ema20'
+Traceback (most recent call last):
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/indexes/base.py", line 3641, in get_loc
+    return self._engine.get_loc(casted_key)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "pandas/_libs/index.pyx", line 168, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/index.pyx", line 197, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7668, in pandas._libs.hashtable.PyObjectHashTable.get_item
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7676, in pandas._libs.hashtable.PyObjectHashTable.get_item
+KeyError: 'ema20'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/services/analysis.py", line 219, in build_timeframe_features
+    trend = get_trend(df)
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/helpers/indicator_features.py", line 5, in get_trend
+    ema20 = df["ema20"].iloc[-1]
+            ~~^^^^^^^^^
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/frame.py", line 4378, in __getitem__
+    indexer = self.columns.get_loc(key)
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/indexes/base.py", line 3648, in get_loc
+    raise KeyError(key) from err
+KeyError: 'ema20'
+2026-04-13 04:59:10 | ERROR | src.services.analysis | [TF BUILD ERROR] BTCUSDT | 1m | 'ema20'
+Traceback (most recent call last):
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/indexes/base.py", line 3641, in get_loc
+    return self._engine.get_loc(casted_key)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "pandas/_libs/index.pyx", line 168, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/index.pyx", line 197, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7668, in pandas._libs.hashtable.PyObjectHashTable.get_item
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7676, in pandas._libs.hashtable.PyObjectHashTable.get_item
+KeyError: 'ema20'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/services/analysis.py", line 186, in assemble_report
+    tf_features[tf] = build_timeframe_features(result["df"], mode)
+                      ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/services/analysis.py", line 219, in build_timeframe_features
+    trend = get_trend(df)
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/src/helpers/indicator_features.py", line 5, in get_trend
+    ema20 = df["ema20"].iloc[-1]
+            ~~^^^^^^^^^
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/frame.py", line 4378, in __getitem__
+    indexer = self.columns.get_loc(key)
+  File "/home/harsh-bansal/JAIGIRRAJDHARAN/ai-trade-insights-project/.venv/lib/python3.13/site-packages/pandas/core/indexes/base.py", line 3648, in get_loc
+    raise KeyError(key) from err
+KeyError: 'ema20'
+2026-04-13 04:59:40 | INFO | src.helpers.data_loader | [WORKER INIT] Redis ready | pid=16880
+2026-04-13 04:59:40 | INFO | src.helpers.data_loader | [MULTI TF START] BTCUSDT | ['1m', '5m', '15m']
+2026-04-13 04:59:40 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 1m | pid=16880
+2026-04-13 04:59:40 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 1m
+2026-04-13 04:59:57 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 5m | pid=16880
+2026-04-13 04:59:57 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 5m
+2026-04-13 05:00:22 | INFO | src.helpers.data_loader | [WORKER START] BTCUSDT | 15m | pid=16880
+2026-04-13 05:00:22 | INFO | src.helpers.data_loader | [PROCESS LOADING DATA] BTCUSDT | 15m
+2026-04-13 05:00:40 | INFO | src.helpers.data_loader | [MULTI TF DONE] BTCUSDT | results=3
+2026-04-13 05:00:46 | INFO | src.services.analysis | [ASSEMBLE REPORT] symbol=BTCUSDT
+2026-04-13 05:00:59 | INFO | src.services.analysis | [BUILD TF FEATURES] BTCUSDT | 1m
