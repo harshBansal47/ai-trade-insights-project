@@ -1,4 +1,3 @@
-
 """
 Technical Indicators Module
 
@@ -28,9 +27,7 @@ def rsi(df: pd.DataFrame, period: int = 14, column: str = "close") -> pd.Series:
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
 
     rs = gain / loss
-    rsi = 100 - (100 / (1 + rs))
-
-    return rsi
+    return 100 - (100 / (1 + rs))
 
 
 # =========================
@@ -41,19 +38,19 @@ def macd(
     fast: int = 12,
     slow: int = 26,
     signal: int = 9,
-    column: str = "close"
-):
+    column: str = "close",
+) -> pd.DataFrame:
     ema_fast = ema(df, fast, column)
     ema_slow = ema(df, slow, column)
 
-    macd_line = ema_fast - ema_slow
+    macd_line   = ema_fast - ema_slow
     signal_line = macd_line.ewm(span=signal, adjust=False).mean()
-    histogram = macd_line - signal_line
+    histogram   = macd_line - signal_line
 
     return pd.DataFrame({
-        "macd": macd_line,
+        "macd":        macd_line,
         "macd_signal": signal_line,
-        "macd_hist": histogram
+        "macd_hist":   histogram,
     })
 
 
@@ -61,14 +58,12 @@ def macd(
 # ATR
 # =========================
 def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
-    high_low = df["high"] - df["low"]
-    high_close = (df["high"] - df["close"].shift()).abs()
-    low_close = (df["low"] - df["close"].shift()).abs()
+    high_low    = df["high"] - df["low"]
+    high_close  = (df["high"] - df["close"].shift()).abs()
+    low_close   = (df["low"]  - df["close"].shift()).abs()
 
     tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
-    atr = tr.rolling(window=period).mean()
-
-    return atr
+    return tr.rolling(window=period).mean()
 
 
 # =========================
@@ -78,18 +73,15 @@ def bollinger_bands(
     df: pd.DataFrame,
     period: int = 20,
     std_dev: int = 2,
-    column: str = "close"
-):
+    column: str = "close",
+) -> pd.DataFrame:
     sma = df[column].rolling(window=period).mean()
     std = df[column].rolling(window=period).std()
 
-    upper_band = sma + (std * std_dev)
-    lower_band = sma - (std * std_dev)
-
     return pd.DataFrame({
         "bb_middle": sma,
-        "bb_upper": upper_band,
-        "bb_lower": lower_band
+        "bb_upper":  sma + (std * std_dev),
+        "bb_lower":  sma - (std * std_dev),
     })
 
 
@@ -99,23 +91,22 @@ def bollinger_bands(
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
-    # EMA
-    df["ema_20"] = ema(df, 20)
-    df["ema_50"] = ema(df, 50)
-    df["ema_200"] = ema(df, 200)
+    # EMA — no underscores, matches indicator_features.py expectations
+    df["ema20"]    = ema(df, 20)
+    df["ema50"]    = ema(df, 50)
+    df["ema200"]   = ema(df, 200)
 
     # RSI
-    df["rsi_14"] = rsi(df, 14)
+    df["rsi"]      = rsi(df, 14)
 
     # MACD
-    macd_df = macd(df)
-    df = pd.concat([df, macd_df], axis=1)
+    df = pd.concat([df, macd(df)], axis=1)
 
-    # ATR
-    df["atr_14"] = atr(df, 14)
+    # ATR + precomputed 50-bar mean for volatility classification
+    df["atr"]      = atr(df, 14)
+    df["atr_ma50"] = df["atr"].rolling(50).mean()
 
     # Bollinger Bands
-    bb_df = bollinger_bands(df)
-    df = pd.concat([df, bb_df], axis=1)
+    df = pd.concat([df, bollinger_bands(df)], axis=1)
 
     return df
