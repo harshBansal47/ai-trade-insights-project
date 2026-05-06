@@ -1,8 +1,11 @@
+from src.agentic_workflow.chain import get_signal_chain
 from src.services.analysis import assemble_report
 from src.helpers.data_loader import _init_worker, process_symbol_multi_timeframe
 from src.core.redis import get_redis_client
 
-def test_raw_data_collection():
+
+
+def build_test_pipeline():
     redis = get_redis_client()
     redis.ping()
     symbol = "BTCUSDT"
@@ -15,6 +18,11 @@ def test_raw_data_collection():
         mode=mode_value,
         raw_data=raw_data
     )
-    print(report)
+    signal = get_signal_chain().run_safe(report)
+    if signal is not None:
+            report["ai_signal"] = signal.model_dump()
+    return report
 
-test_raw_data_collection()
+
+    
+build_test_pipeline()

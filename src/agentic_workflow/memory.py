@@ -1,26 +1,3 @@
-# src/agents/memory.py
-
-"""
-Signal Memory
--------------
-Redis-backed memory that stores the last N signals per symbol+mode.
-Used to give the LLM historical context so it can detect signal flips,
-sustained trends, and avoid contradicting a recent strong signal without
-sufficient new evidence.
-
-Falls back to an in-process dict if Redis is unavailable.
-
-Schema per key  (Redis hash):
-  Key   : signal_memory:{symbol}:{mode}
-  Field : timestamp ISO string
-  Value : serialised SignalOutput JSON
-
-Additional sorted set for ordered retrieval:
-  Key   : signal_memory_index:{symbol}:{mode}
-  Score : Unix timestamp
-  Member: ISO timestamp (links back to hash field)
-"""
-
 from __future__ import annotations
 
 import json

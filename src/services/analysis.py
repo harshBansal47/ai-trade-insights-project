@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 
-from agentic_workflow.chain import get_signal_chain
+from src.agentic_workflow.chain import get_signal_chain
 from src.helpers.indicators import add_indicators
 from src.core.celery import celery_app as celery
 from src.core.logger import setup_logger
@@ -9,7 +9,7 @@ from src.core.database import get_sync_db
 
 from src.helpers.indicator_features import (
     get_atr_features,
-    get_bollinger_features,        # ← added
+    get_bollinger_features,       
     get_macd_features,
     get_rsi_features,
     get_trend,

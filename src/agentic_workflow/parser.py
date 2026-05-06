@@ -24,7 +24,7 @@ from typing import Any, Optional
 from pydantic import ValidationError
 
 
-from agentic_workflow.schemas import RiskLevel, SignalOutput, SignalType
+from src.agentic_workflow.schemas import RiskLevel, SignalOutput, SignalType
 from src.core.logger import setup_logger
 
 logger = setup_logger(__name__)
